@@ -1,0 +1,46 @@
+# One host, TLS, and everything behind the web pods.
+#
+# Routing lives in the web image's own nginx.conf (static assets, plus /api,
+# /mcp, /docs and /openapi.json proxied to the backend Service), so this
+# Ingress has a single rule. Splitting the paths here instead would mean
+# maintaining the same routing twice, in two files, with two sets of timeouts
+# to keep in step.
+#
+# Annotations below are for ingress-nginx. Traefik, HAProxy and the cloud
+# controllers all spell these differently; the values matter more than the
+# keys: streaming needs a long read timeout and no response buffering.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: petri-net-sim
+  namespace: petri-net-sim
+  annotations:
+    # Chat completions and simulations are Server-Sent Events that stay open
+    # for minutes. A default 60s read timeout cuts them off mid-run, and
+    # buffering holds every token until the stream ends, which looks like the
+    # app hanging and then dumping everything at once.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # PNML uploads and large nets.
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # cert-manager, if this cluster runs it. Remove if TLS is handled
+    # elsewhere.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - petri.example.com
+      secretName: petri-net-sim-tls
+  rules:
+    - host: petri.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: petri-net-sim-web
+                port:
+                  number: 80

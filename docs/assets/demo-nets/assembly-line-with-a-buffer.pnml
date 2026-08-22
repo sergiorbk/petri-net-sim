@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="net1" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name>
+      <text>Assembly line with a buffer</text>
+    </name>
+    <page id="page1">
+
+    <place id="p_parts">
+      <name>
+        <text>Parts_Supply</text>
+      </name>
+      <initialMarking>
+        <text>1</text>
+      </initialMarking>
+      <graphics>
+        <position x="88" y="278"/>
+      </graphics>
+    </place>
+    <place id="p_st1free">
+      <name>
+        <text>Station_1_Free</text>
+      </name>
+      <initialMarking>
+        <text>1</text>
+      </initialMarking>
+      <graphics>
+        <position x="288" y="128"/>
+      </graphics>
+    </place>
+    <place id="p_st1busy">
+      <name>
+        <text>Station_1_Busy</text>
+      </name>
+      <graphics>
+        <position x="488" y="128"/>
+      </graphics>
+    </place>
+    <place id="p_buffer">
+      <name>
+        <text>Buffer</text>
+      </name>
+      <graphics>
+        <position x="688" y="278"/>
+      </graphics>
+    </place>
+    <place id="p_st2free">
+      <name>
+        <text>Station_2_Free</text>
+      </name>
+      <initialMarking>
+        <text>1</text>
+      </initialMarking>
+      <graphics>
+        <position x="888" y="128"/>
+      </graphics>
+    </place>
+    <place id="p_st2busy">
+      <name>
+        <text>Station_2_Busy</text>
+      </name>
+      <graphics>
+        <position x="1088" y="128"/>
+      </graphics>
+    </place>
+    <place id="p_ship">
+      <name>
+        <text>Shipped</text>
+      </name>
+      <graphics>
+        <position x="1288" y="278"/>
+      </graphics>
+    </place>
+
+    <transition id="t_feed">
+      <name>
+        <text>Feed_Part</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>6.0</timeDelay>
+        <delayMeanValue>6.0</delayMeanValue>
+        <distribution>exp</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="174" y="282"/>
+      </graphics>
+    </transition>
+    <transition id="t_s1start">
+      <name>
+        <text>Station_1_Start</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>0.0</timeDelay>
+        <delayMeanValue>0.0</delayMeanValue>
+        <distribution>det</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="374" y="132"/>
+      </graphics>
+    </transition>
+    <transition id="t_s1end">
+      <name>
+        <text>Station_1_End</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>10.0</timeDelay>
+        <delayMeanValue>10.0</delayMeanValue>
+        <distribution>norm</distribution>
+        <standardDeviation>2.0</standardDeviation>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="574" y="132"/>
+      </graphics>
+    </transition>
+    <transition id="t_s2start">
+      <name>
+        <text>Station_2_Start</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>0.0</timeDelay>
+        <delayMeanValue>0.0</delayMeanValue>
+        <distribution>det</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="974" y="132"/>
+      </graphics>
+    </transition>
+    <transition id="t_s2end">
+      <name>
+        <text>Station_2_End</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>12.0</timeDelay>
+        <delayMeanValue>12.0</delayMeanValue>
+        <distribution>exp</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="1174" y="132"/>
+      </graphics>
+    </transition>
+
+    <arc id="b1" source="p_parts" target="t_feed">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b2" source="t_feed" target="p_parts">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b3" source="t_feed" target="p_st1free">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b4" source="p_st1free" target="t_s1start">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b5" source="t_s1start" target="p_st1busy">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b6" source="p_st1busy" target="t_s1end">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b7" source="t_s1end" target="p_st1free">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b8" source="t_s1end" target="p_buffer">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b9" source="p_buffer" target="t_s2start">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b10" source="p_st2free" target="t_s2start">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b11" source="t_s2start" target="p_st2busy">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b12" source="p_st2busy" target="t_s2end">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b13" source="t_s2end" target="p_st2free">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="b14" source="t_s2end" target="p_ship">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+
+    </page>
+  </net>
+</pnml>

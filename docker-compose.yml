@@ -1,0 +1,134 @@
+# =============================================================================
+# Petri Net Sim — unified stack (frontend + backend + PostgreSQL)
+# =============================================================================
+# One command to run everything:
+#
+#   docker compose up -d --build
+#
+# Open the app at http://localhost:6200 (nginx serves the UI and proxies the
+# API). Works with zero configuration: auth/crypto secrets are auto-generated
+# on first start. Copy .env.example to .env to customize ports, the database,
+# or LLM defaults. For local development with hot reload, layer the dev
+# overlay (see docker-compose.dev.yml).
+# =============================================================================
+
+name: petri-net-sim
+
+services:
+  # ─── Frontend (nginx: static UI + reverse proxy to the backend) ────────────
+  frontend:
+    build:
+      context: ./frontend
+      target: prod
+    ports:
+      - "${FRONTEND_PORT:-6200}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── Backend (FastAPI + LangGraph + MCP) ───────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "${BACKEND_PORT:-6201}:8000"
+    environment:
+      APP_ENV: "${APP_ENV:-local}"
+      APP_PUBLIC_URL: "${APP_PUBLIC_URL:-http://localhost:6201}"
+
+      # PostgreSQL (service names resolve on the compose network)
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: "${DB_NAME:-petri_net_sim}"
+      DB_USER: "${DB_USER:-petri_net_sim}"
+      DB_PASSWORD: "${DB_PASSWORD:-petri_net_sim}"
+
+      # Auth / crypto secrets. Left blank => auto-generated on first start and
+      # persisted to the `secrets` volume (printed once to the backend logs).
+      # Set them in .env for reproducible deployments.
+      SECRETS_FILE: /secrets/app.env
+      AUTH_JWT_SECRET_KEY: "${AUTH_JWT_SECRET_KEY:-}"
+      CREDENTIALS_CIPHER: "${CREDENTIALS_CIPHER:-fernet}"
+      CREDENTIALS_MASTER_KEY: "${CREDENTIALS_MASTER_KEY:-}"
+
+      # LLM is BYOK-only: each user adds their own API key in the UI Settings.
+      # There is no server-side shared key to configure.
+
+      # Runtime
+      UVICORN_WORKERS: "${UVICORN_WORKERS:-2}"
+      OPENAI_ENABLED: "true"
+      MCP_ENABLED: "true"
+
+      # Simulation backend (see .env.example). Settings reads its own .env
+      # inside the container, not the compose-host one used for ${VAR}
+      # substitution above, so these must be passed through explicitly.
+      SIMULATION_ENGINE: "${SIMULATION_ENGINE:-builtin}"
+      SIMULATION_REMOTE_URL: "${SIMULATION_REMOTE_URL:-}"
+      SIMULATION_REMOTE_FALLBACK: "${SIMULATION_REMOTE_FALLBACK:-true}"
+    volumes:
+      - secrets:/secrets
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # python:3.13-slim ships no curl; use the stdlib HTTP client. start_period
+      # covers Alembic migrations + worker boot so a slow first start is not a
+      # failure.
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=5).status==200 else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # ─── PostgreSQL ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: "${DB_NAME:-petri_net_sim}"
+      POSTGRES_USER: "${DB_USER:-petri_net_sim}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-petri_net_sim}"
+    ports:
+      - "${DB_PORT:-6202}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-petri_net_sim}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ─── petri-server (external Java simulation backend, optional) ────────────
+  # Defaults to PetriObjModelPaint checked out as a sibling directory; override
+  # PETRI_SERVER_BUILD_CONTEXT in .env if it lives elsewhere. Opt in:
+  #   docker compose --profile petri-server up -d --build
+  petri-server:
+    build:
+      context: "${PETRI_SERVER_BUILD_CONTEXT:-../PetriObjModelPaint}"
+      dockerfile: petri-server/Dockerfile
+    ports:
+      # Bound to localhost only: petri-server has no authentication of its
+      # own (the backend is the only intended caller, reaching it over the
+      # internal compose network by service name). Still reachable from the
+      # host for manual curl/debugging, just not from the wider network.
+      - "127.0.0.1:${PETRI_SERVER_PORT:-6205}:8080"
+    mem_limit: "1g"
+    cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    profiles: ["petri-server"]
+
+volumes:
+  postgres_data:
+  secrets:

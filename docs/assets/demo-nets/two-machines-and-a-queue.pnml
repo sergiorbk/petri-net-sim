@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="net1" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name>
+      <text>Two machines and a queue</text>
+    </name>
+    <page id="page1">
+
+    <place id="p_src">
+      <name>
+        <text>Job_Source</text>
+      </name>
+      <initialMarking>
+        <text>1</text>
+      </initialMarking>
+      <graphics>
+        <position x="88" y="278"/>
+      </graphics>
+    </place>
+    <place id="p_queue">
+      <name>
+        <text>Queue</text>
+      </name>
+      <graphics>
+        <position x="348" y="278"/>
+      </graphics>
+    </place>
+    <place id="p_free1">
+      <name>
+        <text>Machine_1_Free</text>
+      </name>
+      <initialMarking>
+        <text>1</text>
+      </initialMarking>
+      <graphics>
+        <position x="548" y="118"/>
+      </graphics>
+    </place>
+    <place id="p_busy1">
+      <name>
+        <text>Machine_1_Busy</text>
+      </name>
+      <graphics>
+        <position x="788" y="118"/>
+      </graphics>
+    </place>
+    <place id="p_free2">
+      <name>
+        <text>Machine_2_Free</text>
+      </name>
+      <initialMarking>
+        <text>1</text>
+      </initialMarking>
+      <graphics>
+        <position x="548" y="438"/>
+      </graphics>
+    </place>
+    <place id="p_busy2">
+      <name>
+        <text>Machine_2_Busy</text>
+      </name>
+      <graphics>
+        <position x="788" y="438"/>
+      </graphics>
+    </place>
+    <place id="p_done">
+      <name>
+        <text>Completed</text>
+      </name>
+      <graphics>
+        <position x="1028" y="278"/>
+      </graphics>
+    </place>
+
+    <transition id="t_arrive">
+      <name>
+        <text>Arrival</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>8.0</timeDelay>
+        <delayMeanValue>8.0</delayMeanValue>
+        <distribution>exp</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="194" y="282"/>
+      </graphics>
+    </transition>
+    <transition id="t_start1">
+      <name>
+        <text>Machine_1_Start</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>0.0</timeDelay>
+        <delayMeanValue>0.0</delayMeanValue>
+        <distribution>det</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="654" y="122"/>
+      </graphics>
+    </transition>
+    <transition id="t_end1">
+      <name>
+        <text>Machine_1_End</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>14.0</timeDelay>
+        <delayMeanValue>14.0</delayMeanValue>
+        <distribution>exp</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="894" y="122"/>
+      </graphics>
+    </transition>
+    <transition id="t_start2">
+      <name>
+        <text>Machine_2_Start</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>0.0</timeDelay>
+        <delayMeanValue>0.0</delayMeanValue>
+        <distribution>det</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="654" y="442"/>
+      </graphics>
+    </transition>
+    <transition id="t_end2">
+      <name>
+        <text>Machine_2_End</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>20.0</timeDelay>
+        <delayMeanValue>20.0</delayMeanValue>
+        <distribution>exp</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="894" y="442"/>
+      </graphics>
+    </transition>
+
+    <arc id="a1" source="p_src" target="t_arrive">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a2" source="t_arrive" target="p_src">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a3" source="t_arrive" target="p_queue">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a4" source="p_queue" target="t_start1">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a5" source="p_free1" target="t_start1">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a6" source="t_start1" target="p_busy1">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a7" source="p_busy1" target="t_end1">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a8" source="t_end1" target="p_free1">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a9" source="t_end1" target="p_done">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a10" source="p_queue" target="t_start2">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a11" source="p_free2" target="t_start2">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a12" source="t_start2" target="p_busy2">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a13" source="p_busy2" target="t_end2">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a14" source="t_end2" target="p_free2">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="a15" source="t_end2" target="p_done">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+
+    </page>
+  </net>
+</pnml>

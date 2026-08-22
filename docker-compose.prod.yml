@@ -1,0 +1,41 @@
+# =============================================================================
+# Petri Net Sim: run a published release instead of building one
+# =============================================================================
+# Layered over docker-compose.yml, this swaps the two build-from-source
+# services for images from a registry:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# That is the whole deployment step on a server, and it is what
+# .github/workflows/deploy.yml runs over SSH. Nothing here is built, so the
+# server needs no toolchain, no source checkout and no build memory.
+#
+# These images are NOT published by this project. Only the all-in-one is (see
+# .github/workflows/release.yml, and the reasoning there). Build and push
+# these two to your own registry, then point IMAGE_REGISTRY at it:
+#
+#   docker build -t $REG/petri-net-sim-web:v1.0.0 --target prod ./frontend
+#   docker build -t $REG/petri-net-sim-api:v1.0.0 ./backend
+#   docker push $REG/petri-net-sim-web:v1.0.0
+#   docker push $REG/petri-net-sim-api:v1.0.0
+#
+# IMAGE_REGISTRY has no default on purpose: a default pointing at a registry
+# that holds no such image fails at pull time with a confusing 404, while an
+# unset variable fails here, by name, before anything runs.
+#
+# Pin a release with TAG in .env (TAG=v1.0.0).
+#
+# See docs/deployment.md.
+# =============================================================================
+
+services:
+  frontend:
+    image: "${IMAGE_REGISTRY:?set IMAGE_REGISTRY to a registry holding your own build}/petri-net-sim-web:${TAG:-latest}"
+    # The base file's `build:` stays defined but unused: an image that is
+    # present is not rebuilt unless --build is passed explicitly.
+    pull_policy: always
+
+  backend:
+    image: "${IMAGE_REGISTRY:?set IMAGE_REGISTRY to a registry holding your own build}/petri-net-sim-api:${TAG:-latest}"
+    pull_policy: always

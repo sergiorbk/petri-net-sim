@@ -1,0 +1,39 @@
+# Non-secret configuration. Everything here is safe to read.
+#
+# The full list of settings, with defaults, is in .env.example and
+# docs/configuration.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: petri-net-sim
+  namespace: petri-net-sim
+data:
+  # A deployed environment: the backend hardens itself and refuses to boot on
+  # insecure configuration. Do not set this to "local" to make an error go
+  # away; the error is the point.
+  APP_ENV: "prod"
+
+  # Accounts required. "single_user" means no login at all, which is a
+  # laptop setting, not a cluster one.
+  AUTH_MODE: "multi"
+
+  # Used to build absolute links, such as PNML downloads. Your public URL.
+  APP_PUBLIC_URL: "https://petri.example.com"
+
+  DB_PORT: "5432"
+  CREDENTIALS_CIPHER: "fernet"
+
+  # One uvicorn worker per pod: replicas are the unit of scale here, and two
+  # layers of concurrency only make the per-process rate limiter harder to
+  # reason about.
+  UVICORN_WORKERS: "1"
+
+  OPENAI_ENABLED: "true"
+
+  # MCP sessions live in the API process's memory, so a client that lands on
+  # a different pod loses its session. Keep this "true" only while the API
+  # runs a single replica, or route /mcp to one pod. See README.md.
+  MCP_ENABLED: "true"
+
+  # API docs are off in a deployed environment unless asked for.
+  DOCS_ENABLED: "false"

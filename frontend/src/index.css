@@ -1,0 +1,172 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-surface: var(--surface);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border-color);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-input-bg: var(--input-bg);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-backdrop: var(--backdrop);
+}
+
+:root {
+  color-scheme: light;
+  --surface: #ffffff;
+  --surface-secondary: #f9fafb;
+  --surface-hover: #f3f4f6;
+  --border-color: #e5e7eb;
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-muted: #6b7280;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --input-bg: #f3f4f6;
+  --sidebar-bg: #f9fafb;
+  --sidebar-hover: #e5e7eb;
+  --backdrop: rgba(0, 0, 0, 0.5);
+}
+
+.dark {
+  color-scheme: dark;
+  --surface: #0f0f0f;
+  --surface-secondary: #1a1a1a;
+  --surface-hover: #262626;
+  --border-color: #2e2e2e;
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-muted: #9ca3af;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --input-bg: #1a1a1a;
+  --sidebar-bg: #171717;
+  --sidebar-hover: #262626;
+  --backdrop: rgba(0, 0, 0, 0.7);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background-color: var(--surface);
+  color: var(--text-primary);
+}
+
+body {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── React Flow controls ─────────────────────────────────────────────────────
+   Tailwind 4's base reset interferes with React Flow's button/SVG defaults.
+   These overrides restore visible zoom/fit controls in both light and dark mode.
+   ─────────────────────────────────────────────────────────────────────────── */
+.react-flow__controls {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: #ffffff;
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 6px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+  cursor: pointer;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.react-flow__controls-button:hover {
+  background: #f3f4f6;
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
+  width: 14px;
+  height: 14px;
+  max-width: 14px;
+  max-height: 14px;
+}
+
+/* Dark mode */
+.dark .react-flow__controls-button {
+  background: #18181b;
+  border-bottom-color: #3f3f46;
+  color: #a1a1aa;
+}
+
+.dark .react-flow__controls-button:hover {
+  background: #27272a;
+  color: #e4e4e7;
+}
+
+/* Petri net simulation animations
+   Fire color matches the classical Petri net convention: red (#FF4D4D) for
+   any element involved in a transition firing event. */
+@keyframes petri-place-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.65); }
+  60%  { box-shadow: 0 0 0 12px rgba(255, 77, 77, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); }
+}
+
+@keyframes petri-transition-fire {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.75); border-color: #ff4d4d; }
+  40%  { box-shadow: 0 0 0 10px rgba(255, 77, 77, 0.2); border-color: #ff4d4d; }
+  100% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); }
+}
+
+.petri-pulse-place {
+  animation: petri-place-pulse 0.56s ease-out 1;
+}
+
+.petri-pulse-transition {
+  animation: petri-transition-fire 0.56s ease-out 1;
+}
+
+/* An object frame highlights for as long as the simulation is acting on one of
+   its members, so unlike the one-shot node pulses above this one repeats. The
+   boundary is an SVG stroke, so it animates stroke properties rather than a
+   box-shadow. */
+@keyframes petri-frame-fire {
+  0%   { stroke-opacity: 1;    stroke-width: 2; }
+  50%  { stroke-opacity: 0.45; stroke-width: 3.5; }
+  100% { stroke-opacity: 1;    stroke-width: 2; }
+}
+
+.petri-pulse-frame {
+  animation: petri-frame-fire 0.9s ease-in-out infinite;
+}
+
+/* Horizontal strips that carry their own arrow buttons (the canvas bar) hide
+   the native scrollbar — it would otherwise eat a third of an 8-unit row. */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

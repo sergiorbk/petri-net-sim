@@ -1,0 +1,148 @@
+name: Deploy
+
+# Ships a published release to one server over SSH. The server pulls the
+# images release.yml pushed; nothing is built there.
+#
+# Runs automatically after a release is published, and by hand from the
+# Actions tab when you want to redeploy or move a server to a specific tag.
+#
+# Required repository secrets (Settings, Secrets and variables, Actions):
+#
+#   DEPLOY_HOST      hostname or IP of the server
+#   DEPLOY_USER      SSH user, e.g. ubuntu on an EC2 Ubuntu AMI
+#   DEPLOY_SSH_KEY   the PRIVATE key, whole file including the BEGIN/END lines
+#
+# Optional:
+#
+#   DEPLOY_PORT      SSH port, default 22
+#   DEPLOY_PATH      directory on the server, default ~/petri-net-sim
+#
+# Repository variables (not secrets, none of this is sensitive):
+#
+#   DEPLOY_MODE         "allinone" (default) runs the single-container image,
+#                       "stack" runs nginx + api + postgres as three
+#   DEPLOY_HEALTH_PORT  overrides the port probed after the restart
+#
+# Without DEPLOY_HOST the deploy job is skipped, not merely emptied, so a
+# fork or a repo with no server attached stays green and records no
+# deployment.
+#
+# See docs/deployment.md for what the server needs first.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to deploy, e.g. v1.2.0 or latest"
+        required: false
+        default: latest
+
+permissions:
+  contents: read
+
+jobs:
+  # Whether there is a server at all, decided in its own job so the one below
+  # can be skipped outright rather than run and do nothing. That matters: a
+  # job carrying `environment: production` records a GitHub deployment the
+  # moment it starts, so a deploy job that skipped every step still reported
+  # "Deployed to production" on a repository with no server attached.
+  #
+  # A job-level `if` cannot read a secret, which is why the secret is read in
+  # a step here and handed on as a plain boolean.
+  check:
+    name: Is a server configured
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Check that a server is configured
+        id: check
+        run: |
+          if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then
+            echo "No DEPLOY_HOST secret, nothing to deploy to."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Deploy over SSH
+    needs: check
+    if: needs.check.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Work out which tag to ship
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Load the SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Trust on first use is the wrong default for a deploy, but pinning
+          # a host key here would break the moment the box is rebuilt. The
+          # connection is to an address only this repo's secrets name.
+          ssh-keyscan -p "${{ secrets.DEPLOY_PORT || 22 }}" -H \
+            "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Pull and restart
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          DEPLOY_MODE: ${{ vars.DEPLOY_MODE || 'allinone' }}
+          REMOTE_PATH: ${{ secrets.DEPLOY_PATH || '~/petri-net-sim' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -p "${{ secrets.DEPLOY_PORT || 22 }}" \
+              -o BatchMode=yes \
+              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+              "TAG='$TAG' DEPLOY_MODE='$DEPLOY_MODE' DEPLOY_PATH='$REMOTE_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "${DEPLOY_PATH:-$HOME/petri-net-sim}"
+
+          # The compose files come from the repo, the .env stays on the
+          # server: it holds this deployment's secrets and is never in git.
+          git fetch --quiet origin
+          git checkout --quiet "$(git rev-parse --abbrev-ref origin/HEAD | sed 's|origin/||')"
+          git pull --quiet --ff-only
+
+          # One container or three, same two commands either way.
+          if [ "$DEPLOY_MODE" = "stack" ]; then
+            FILES="-f docker-compose.yml -f docker-compose.prod.yml"
+          else
+            FILES="-f docker-compose.allinone.yml"
+          fi
+
+          echo "TAG=$TAG" > .env.tag
+          COMPOSE="docker compose $FILES --env-file .env --env-file .env.tag"
+          $COMPOSE pull
+          $COMPOSE up -d --remove-orphans
+          docker image prune -f
+          $COMPOSE ps
+          REMOTE
+
+      - name: Wait for the app to answer
+        env:
+          # The all-in-one publishes one port; the stack puts the API on its
+          # own. DEPLOY_HEALTH_PORT overrides both when either is remapped.
+          PORT: ${{ vars.DEPLOY_HEALTH_PORT || (vars.DEPLOY_MODE == 'stack' && '6201' || '6204') }}
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf --max-time 5 \
+                "http://${{ secrets.DEPLOY_HOST }}:${PORT}/health" \
+                > /dev/null; then
+              echo "Healthy after ${i} attempts."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "The server never answered /health. Check the container logs."
+          exit 1

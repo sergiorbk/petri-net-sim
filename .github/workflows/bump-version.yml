@@ -1,0 +1,130 @@
+name: Bump version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version, e.g. 1.1.0"
+        required: true
+      branch:
+        # Left blank rather than naming the trunk: an empty value resolves to
+        # whatever the repository's default branch is, so this keeps working
+        # if that branch is ever renamed.
+        description: "Branch to bump and tag (blank = the default branch)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: petri_net_sim_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || github.event.repository.default_branch }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen --extra dev
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        # Needed before the bump script runs: it shells out to vite-node and
+        # vitest (both frontend devDependencies) to regenerate and self-check
+        # the TypeScript golden fixture.
+        run: npm ci
+
+      # Updates frontend/package.json, backend/pyproject.toml,
+      # PETRI_NET_SIM_VERSION, Settings.APP_VERSION's default, and the two
+      # hardcoded literals in pnml-export.test.ts; regenerates both golden
+      # PNML fixtures by running the real exporters; then self-verifies
+      # (the version-alignment test plus each fixture's own golden-match
+      # test) and exits nonzero on any mismatch. See backend/scripts/
+      # bump_version.py's own module docstring for the full contract -- this
+      # is the same command a human doing a manual bump would run.
+      - name: Bump version
+        working-directory: backend
+        run: uv run python scripts/bump_version.py "${{ inputs.version }}"
+
+      # Refreshes each lockfile's own recorded project version now that
+      # package.json / pyproject.toml have changed; neither install step
+      # needs to touch the registry for anything else, since no dependency
+      # actually changed.
+      - name: Refresh frontend lockfile
+        working-directory: frontend
+        run: npm install
+
+      - name: Refresh backend lockfile
+        working-directory: backend
+        run: uv lock
+
+      # The full suites, as a gate: fail the workflow (not just the bump
+      # script's own narrower self-check) if anything the bump touched, or
+      # anything it didn't, stopped passing.
+      - name: Run backend test suite
+        working-directory: backend
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: petri_net_sim_test
+          DB_USER: postgres
+          DB_PASSWORD: testpass
+          AUTH_JWT_SECRET_KEY: test-secret-key-for-ci-only
+        run: uv run pytest --tb=short
+
+      - name: Run frontend test suite
+        working-directory: frontend
+        run: |
+          npm run typecheck
+          npm run test:run
+
+      - name: Commit, tag, and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add \
+            frontend/package.json \
+            frontend/package-lock.json \
+            backend/pyproject.toml \
+            backend/uv.lock \
+            backend/src/services/petri/exporter/toolspecific.py \
+            backend/src/core/config.py \
+            backend/tests/fixtures/composed_conformant_v21.pnml \
+            frontend/src/lib/__fixtures__/composed_conformant_v21.pnml \
+            frontend/src/lib/pnml-export.test.ts
+          git commit -m "Bump project version to ${{ inputs.version }}"
+          git tag "v${{ inputs.version }}"
+          # Branch first, then the tag: if the branch push is rejected (e.g.
+          # a race with another push to the same branch), no tag is left
+          # pointing at a commit nobody's history actually contains.
+          git push origin HEAD:"${{ inputs.branch || github.event.repository.default_branch }}"
+          git push origin "v${{ inputs.version }}"

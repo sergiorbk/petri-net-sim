@@ -1,0 +1,16 @@
+# Used by deploy/allinone/Dockerfile, whose build context is the repo root
+# (backend/ and frontend/ each already have their own .dockerignore-free
+# setup since their own Dockerfiles use a narrower per-directory context).
+.git
+**/.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/*.pyc
+**/htmlcov
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.env
+**/*.log
+PetriObjModelPaint

@@ -1,0 +1,106 @@
+# =============================================================================
+# Petri Net Sim: all-in-one image (frontend + backend + Postgres, ONE
+# container, ONE port). The simplest way to run this app: one command, no
+# .env required, no signup step.
+# =============================================================================
+#
+#   docker compose -f docker-compose.allinone.yml up -d
+#
+# Open http://localhost:6204. Auth/crypto secrets are auto-generated on
+# first start and persisted (with the Postgres data) in the `data` volume
+# below, so restarting the container keeps everything -- only
+# `docker compose -f docker-compose.allinone.yml down -v` wipes it.
+#
+# This is the fourth way to run the app, and trades the isolation of the
+# other three (separate containers, separately scalable/replaceable) for a
+# single command. Reach for one of those instead if you need:
+#
+#   - Hot reload while developing:
+#       docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#   - A production-style deployment (nginx + backend + Postgres as separate
+#     containers, multi-user accounts by default):
+#       docker compose up -d --build
+#   - Only the MCP server, e.g. to keep it running as a service exposed to
+#     an external agent client without also running the chat UI: run the
+#     `backend` container from docker-compose.yml directly.
+# =============================================================================
+
+name: petri-net-sim-allinone
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: deploy/allinone/Dockerfile
+    # A real, pullable name, not a bare local tag: `docker compose ... pull`
+    # resolves this against GHCR, matching exactly what release.yml pushes.
+    # `up --build` still builds locally from the Dockerfile above and tags
+    # the result with this same name, so both paths keep working from one
+    # file.
+    #
+    # "-local" is part of the name, not a description: this image defaults to
+    # AUTH_MODE=single_user, where everyone reaching the port is the same
+    # account. See docs/deployment.md before putting it on a network.
+    image: "ghcr.io/${GHCR_OWNER:-sergiorbk}/petri-net-sim-local:${TAG:-latest}"
+    ports:
+      # 6204, not 6201 -- the multi-container stack's own backend (see
+      # docker-compose.yml) already defaults to 6201, and this artifact is
+      # meant to be runnable alongside it, not just instead of it.
+      - "${PORT:-6204}:8000"
+    environment:
+      APP_ENV: "${APP_ENV:-local}"
+      APP_PUBLIC_URL: "${APP_PUBLIC_URL:-http://localhost:6204}"
+
+      # No login by default -- this image is meant for one person to run
+      # locally. Set AUTH_MODE=multi here to require accounts instead (the
+      # signup/login endpoints re-enable; the frontend build already
+      # supports both modes since it reads GET /api/v1/config at runtime).
+      AUTH_MODE: "${AUTH_MODE:-single_user}"
+
+      # Left blank => auto-generated on first start and persisted to the
+      # `data` volume (printed once to this container's logs). Set them
+      # here for reproducible deployments.
+      AUTH_JWT_SECRET_KEY: "${AUTH_JWT_SECRET_KEY:-}"
+      CREDENTIALS_CIPHER: "${CREDENTIALS_CIPHER:-fernet}"
+      CREDENTIALS_MASTER_KEY: "${CREDENTIALS_MASTER_KEY:-}"
+
+      # PostgreSQL runs inside this same container, bound to 127.0.0.1 only
+      # -- it is never reachable from outside, so these stay fixed local
+      # defaults (see deploy/allinone/Dockerfile for why).
+      DB_NAME: "${DB_NAME:-petri_net_sim}"
+      DB_USER: "${DB_USER:-petri_net_sim}"
+      DB_PASSWORD: "${DB_PASSWORD:-petri_net_sim}"
+
+      # LLM is BYOK-only: each user adds their own API key in the UI Settings.
+      # There is no server-side shared key to configure.
+
+      UVICORN_WORKERS: "${UVICORN_WORKERS:-1}"
+      OPENAI_ENABLED: "true"
+      MCP_ENABLED: "true"
+
+      SIMULATION_ENGINE: "${SIMULATION_ENGINE:-builtin}"
+      SIMULATION_REMOTE_URL: "${SIMULATION_REMOTE_URL:-}"
+      SIMULATION_REMOTE_FALLBACK: "${SIMULATION_REMOTE_FALLBACK:-true}"
+    volumes:
+      # ONE volume for both Postgres data and the auto-generated secrets
+      # (see DATA_DIR/PGDATA/SECRETS_FILE defaults in the Dockerfile) -- a
+      # stop/start keeps everything; `down -v` wipes it.
+      - data:/data
+    healthcheck:
+      # No curl in this image (removed after fetching the Postgres apt key
+      # -- see the Dockerfile); use the stdlib HTTP client instead, same as
+      # docker-compose.yml's backend healthcheck. start_period covers first-
+      # run Postgres initialization + Alembic migrations + worker boot.
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=5).status==200 else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  data:

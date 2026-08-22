@@ -1,0 +1,42 @@
+# Example host nginx config for a TLS-terminating reverse proxy in front of the
+# stack. The frontend container already serves the UI and proxies /api and /mcp
+# to the backend, so the host only needs to forward traffic to it.
+#
+# Usage:
+#   1. Point your domain's DNS at the server.
+#   2. Obtain certificates, e.g. with certbot (Let's Encrypt).
+#   3. Copy this file to /etc/nginx/sites-available/<domain>.conf, edit the
+#      server_name and certificate paths, enable it, and reload nginx.
+#   4. Run the stack with a production .env (APP_ENV=prod, explicit secrets,
+#      APP_PUBLIC_URL=https://<domain>).
+
+server {
+    listen 80;
+    server_name example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+    include             /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+
+    client_max_body_size 20M;
+
+    location / {
+        proxy_pass http://127.0.0.1:6200;   # FRONTEND_PORT
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # MCP / SSE streaming
+        proxy_read_timeout 3600s;
+        proxy_buffering off;
+        chunked_transfer_encoding on;
+    }
+}

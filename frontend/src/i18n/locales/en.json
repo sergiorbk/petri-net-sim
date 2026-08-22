@@ -1,0 +1,589 @@
+{
+  "sidebar": {
+    "newChat": "New Chat",
+    "searchChats": "Search chats...",
+    "noChats": "No conversations yet"
+  },
+  "chat": {
+    "placeholder": "Describe your system...",
+    "send": "Send message",
+    "upload": "Upload file",
+    "microphone": "Voice input",
+    "stop": "Stop generation",
+    "modelSelector": {
+      "myModels": "My models",
+      "loading": "Loading...",
+      "select": "Select a model",
+      "addModel": "Add a model"
+    },
+    "netStyle": {
+      "label": "Net style",
+      "classical": "Classical",
+      "classicalHint": "Build a single flat Petri net",
+      "object": "Object",
+      "objectHint": "Wrap each logical block in its own Petri-object (ISO/IEC 15909 modules)"
+    },
+    "direction": {
+      "label": "Build direction",
+      "horizontalHint": "Horizontal: the net grows left to right, parallel steps stack underneath each other",
+      "verticalHint": "Vertical: the net grows top to bottom, parallel steps stand side by side"
+    }
+  },
+  "account": {
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Log out"
+  },
+  "settings": {
+    "title": "Settings",
+    "nav": {
+      "appearance": "Appearance",
+      "profile": "Profile",
+      "llmModels": "LLM Models",
+      "apiKeys": "API Keys",
+      "mcp": "MCP",
+      "api": "OpenAPI"
+    },
+    "profile": {
+      "avatar": "Avatar",
+      "fullName": "Full name",
+      "fullNamePlaceholder": "Your name",
+      "displayName": "What should the assistant call you?",
+      "displayNamePlaceholder": "Preferred name",
+      "workType": "What best describes your work?",
+      "workTypePlaceholder": "Select...",
+      "customInstructions": "Instructions for the LLM / agent",
+      "customInstructionsPlaceholder": "E.g. Always respond in a formal tone. Focus on concise answers.",
+      "customInstructionsHint": "The assistant will keep these in mind across chats.",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "errorSaving": "Failed to save profile.",
+      "workTypes": {
+        "software_engineer": "Software Engineer",
+        "data_scientist": "Data Scientist",
+        "designer": "Designer",
+        "product_manager": "Product Manager",
+        "researcher": "Researcher / Academic",
+        "student": "Student",
+        "other": "Other"
+      }
+    },
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "language": "Language",
+    "languageEn": "English",
+    "languageUk": "Ukrainian",
+    "apiKeys": {
+      "title": "API Keys",
+      "create": "Create key",
+      "cancel": "Cancel",
+      "namePlaceholder": "Key name (optional)",
+      "revoke": "Revoke",
+      "confirmRevoke": "Revoke this API key? This cannot be undone.",
+      "empty": "No API keys yet",
+      "loading": "Loading...",
+      "unnamed": "Unnamed",
+      "created": "Created",
+      "lastUsed": "Last used",
+      "never": "never",
+      "createdRawWarning": "Copy this key now. For security reasons, it will not be shown again.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "modelLabel": "LLM model",
+      "modelDefault": "Default",
+      "modelNoProfiles": "No profiles — add one in LLM Profiles",
+      "boundModel": "Model"
+    },
+    "llmProfiles": {
+      "title": "LLM Profiles",
+      "description": "Connect your own LLM credentials to use custom models in chat.",
+      "loading": "Loading...",
+      "empty": "No profiles yet",
+      "addProfile": "Add profile",
+      "confirmDelete": "Delete this LLM profile? This cannot be undone.",
+      "created": "Added",
+      "testedOn": "Tested",
+      "test": "Test connection",
+      "delete": "Delete",
+      "testSuccess": "Connection successful",
+      "testFailed": "Connection failed",
+      "form": {
+        "name": "Profile name",
+        "namePlaceholder": "My OpenAI",
+        "provider": "Provider",
+        "model": "Model",
+        "apiKey": "API key",
+        "apiKeyPlaceholder": "sk-...",
+        "baseUrl": "Base URL",
+        "baseUrlPlaceholder": "https://api.openai.com/v1",
+        "optional": "optional",
+        "save": "Save",
+        "cancel": "Cancel"
+      }
+    },
+    "integrations": {
+      "loading": "Loading server details...",
+      "configError": "Could not read the server configuration. Connection details are unavailable.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "on": "On",
+      "off": "Off",
+      "howTo": "How to connect",
+      "apiKeysLink": "API Keys",
+      "mcp": {
+        "title": "MCP",
+        "description": "Let an MCP client (Claude Desktop, Claude Code, Cursor and others) build, edit and simulate Petri nets in your account.",
+        "switchLabel": "Allow MCP access",
+        "switchDescription": "When off, this server answers 403 to every MCP request made with your API keys. Your keys keep working everywhere else.",
+        "serverDisabled": "This server is running with MCP switched off, so the endpoint below will not answer until an administrator enables it.",
+        "endpointLabel": "Endpoint URL",
+        "configLabel": "Client configuration",
+        "transportNote": "Transport: streamable HTTP. Authentication: an Authorization: Bearer header carrying your API key.",
+        "step1": "Create an API key in <keys>API Keys</keys> and copy it. It is shown once.",
+        "step2": "Add the configuration above to your MCP client, putting the key in place of the placeholder.",
+        "step3": "Restart the client. The Petri net tools appear in its tool list."
+      },
+      "api": {
+        "title": "OpenAPI",
+        "description": "An OpenAI-compatible HTTP API. Point any OpenAI client library at it and generate Petri nets from your own code.",
+        "switchLabel": "Allow API access",
+        "switchDescription": "When off, this server answers 403 to API requests made with your API keys. The web app keeps working, since it uses your browser session rather than a key.",
+        "serverDisabled": "This server is running with the HTTP API switched off, so the endpoints below will not answer until an administrator enables it.",
+        "baseUrlLabel": "Base URL",
+        "modelLabel": "Model",
+        "exampleLabel": "Example request",
+        "step1": "Create an API key in <keys>API Keys</keys> and copy it. It is shown once.",
+        "step2": "Set the base URL above in your OpenAI client, and the API key as its key.",
+        "step3": "Send a chat completion. The reply carries the generated net, and download links for its PNML.",
+        "schemaTitle": "API reference",
+        "docsLink": "Interactive docs",
+        "schemaLink": "OpenAPI schema",
+        "docsDisabled": "API docs are switched off on this server."
+      }
+    }
+  },
+  "inspector": {
+    "hints": {
+      "dist": {
+        "immediate": "No delay — token passes through instantly.\nUse for: routers, sorters, immediate branching.\nNote: avoid self-loops (P→T→P) — causes livelock.",
+        "exp": "Exponential random delay, memoryless.\nUse for: arrivals, failures, service times.\nE.g. mean=5 → avg 5 s between firings.",
+        "norm": "Bell-curve random delay.\nUse for: machining, processing with natural spread.\nE.g. mean=10, std=2 → usually 8–12 s.",
+        "unif": "Flat random in [mean−std, mean+std].\nUse for: any delay in a range equally likely.\nE.g. mean=10, std=3 → uniform 7–13 s.",
+        "det": "Fixed constant delay, same every time.\nUse for: conveyors, known fixed durations.\nE.g. mean=3 → always exactly 3 s."
+      },
+      "meanDelay": "Average time (sim units) the transition holds a token before firing.\n→ Exp: mean of the distribution\n→ Normal / Uniform: center of the range\n→ Det: exact fixed duration\nExample: mean=60, scale=seconds → avg 1 min hold time.",
+      "stdDeviation": "Spread around the mean. Used by Normal and Uniform only.\n→ Normal: ~68% of delays fall in [mean−std, mean+std]\n→ Uniform: values drawn uniformly from [mean−std, mean+std]\nSet to 0 for Exp or Det (has no effect).\nExample: mean=10, std=3 → mostly 7–13 s.",
+      "priority": "Firing order when multiple enabled transitions compete for the same token.\nDefault is 1 (normal). Higher number fires first.\nEqual-priority transitions are resolved by probability weights.\nExample: T1(priority=2) always fires before T2(priority=1) regardless of probability.",
+      "probability": "Firing weight among same-priority transitions that compete from the same place.\nEnter 0–100%. Competing transitions must not exceed 100% total.\nAny unset transitions share the remaining percent equally.\nLeave blank if this transition has no same-priority competitors."
+    },
+    "properties": "Properties",
+    "expandProperties": "Expand properties",
+    "collapseProperties": "Collapse properties",
+    "missingElement": "The selected element no longer exists.",
+    "multiSelect": "{{count}} elements selected. Batch editing is not yet available — select a single element to edit its properties.",
+    "subtitle": {
+      "multipleElements": "Multiple elements",
+      "netProperties": "Net-level properties",
+      "place": "Place",
+      "transition": "Transition",
+      "arc": "Arc",
+      "object": "Object frame",
+      "link": "Object link"
+    },
+    "section": {
+      "net": "Net",
+      "identification": "Identification",
+      "marking": "Marking",
+      "position": "Position",
+      "firing": "Firing",
+      "endpoints": "Endpoints",
+      "behavior": "Behavior"
+    },
+    "field": {
+      "id": "ID",
+      "name": "Name",
+      "counts": "Counts",
+      "countsValue": "{{places}} places · {{transitions}} transitions · {{arcs}} arcs",
+      "arcStyle": "Arc style",
+      "frameStyle": "Object outline",
+      "initialTokens": "Initial tokens",
+      "priority": "Priority",
+      "distribution": "Distribution",
+      "meanDelay": "Mean delay",
+      "stdDeviation": "Std deviation",
+      "probability": "Probability (%)",
+      "probabilityNone": "(none)",
+      "source": "Source",
+      "target": "Target",
+      "type": "Type",
+      "weight": "Weight",
+      "placeLabel": "{{name}} (place)",
+      "transitionLabel": "{{name}} (transition)",
+      "conflictExplicit": "{{name}}: {{total}}% explicit",
+      "conflictRemainingSplit": " — {{remaining}}% split among {{count}} unset ({{each}}% each)",
+      "conflictRemainingUnallocated": " — {{remaining}}% unallocated",
+      "informational": "Informational (test, doesn't consume)"
+    },
+    "distributions": {
+      "immediate": "Immediate (no delay)",
+      "exp": "Exponential",
+      "norm": "Normal",
+      "unif": "Uniform",
+      "det": "Deterministic (fixed)"
+    },
+    "arcTypes": {
+      "NORMAL": "Normal",
+      "INHIBITOR": "Inhibitor",
+      "READ": "Read"
+    },
+    "linkTypes": {
+      "placeFusion": "Place fusion (shared place)",
+      "transitionToPlace": "Transition → place (external output)",
+      "placeToTransition": "Place → transition (external input)"
+    }
+  },
+  "emptyState": {
+    "heading": "Petri Net Sim",
+    "subheading": "Describe a system and get a Petri net"
+  },
+  "auth": {
+    "subtitle": "Sign in to continue",
+    "signInWithGoogle": "Sign in with Google",
+    "signingIn": "Signing in...",
+    "authError": "Authentication failed",
+    "tryAgain": "Try again",
+    "or": "or",
+    "tabs": {
+      "signIn": "Sign in",
+      "signUp": "Sign up"
+    },
+    "signIn": {
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "error": "Invalid email or password"
+    },
+    "signUp": {
+      "email": "Email",
+      "password": "Password",
+      "name": "Name (optional)",
+      "submit": "Create account",
+      "error": "Failed to create account"
+    }
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Create",
+    "creating": "Creating…",
+    "comingSoon": "Coming soon",
+    "loading": "Loading…",
+    "name": "Name"
+  },
+  "dialog": {
+    "newNet": {
+      "title": "New Petri Net",
+      "basedOn": "Based on",
+      "emptyNet": "Empty net",
+      "namePlaceholder": "Net name"
+    },
+    "saveObject": {
+      "title": "Save Selection as Petri Object",
+      "description": "Description (optional)",
+      "namePlaceholder": "e.g. Generator",
+      "descriptionPlaceholder": "What does this object model?",
+      "saveFailed": "Could not save this Petri object."
+    },
+    "export": {
+      "title": "Export",
+      "format": "Format",
+      "submit": "Export",
+      "pnml": {
+        "label": "PNML (.pnml)",
+        "description": "Petri Net Markup Language — standard interchange format"
+      },
+      "xml": {
+        "label": "XML (.xml)",
+        "description": "The same PNML document, saved with a .xml extension for tools that require one"
+      }
+    },
+    "import": {
+      "title": "Import",
+      "format": "Format",
+      "submit": "Choose file...",
+      "confirmDiscard": "You have unsaved changes. Discard and import?",
+      "pnml": {
+        "label": "PNML (.pnml)",
+        "description": "Petri Net Markup Language — standard interchange format"
+      },
+      "json": {
+        "label": "JSON (.json)",
+        "description": "Native JSON representation"
+      }
+    }
+  },
+  "agent": {
+    "running": "Running",
+    "failed": "Failed",
+    "done": "Done",
+    "input": "Input",
+    "result": "Result"
+  },
+  "shared": {
+    "emptyChat": "This chat is empty.",
+    "netNotFound": "Net not found or access is closed.",
+    "failedToLoad": "Failed to load.",
+    "goToGallery": "Go to gallery",
+    "openInEditor": "Open in editor",
+    "opening": "Opening…",
+    "signInToEdit": "Sign in to edit"
+  },
+  "simulator": {
+    "run": "Run",
+    "runAndStep": "Run & Step",
+    "duration": "Duration",
+    "visual": "Visual",
+    "scientific": "Scientific",
+    "step": "Step",
+    "every": "Every",
+    "steps": "steps",
+    "reset": "Reset",
+    "computing": "Computing...",
+    "running": "Running",
+    "paused": "Paused",
+    "done": "Done",
+    "readOnlyNotice": "Simulation is disabled in view-only mode.",
+    "signInToRun": "Sign in to run simulations",
+    "runTitle": "Run simulation (auto-play)",
+    "runAndStepTitle": "Start paused at step 0 for manual stepping",
+    "runToEnd": "Final state",
+    "runToEndTitle": "Compute the whole run and show its final state, without playing the animation",
+    "rerunTitle": "Re-run simulation",
+    "resetTitle": "Reset to initial marking",
+    "stopTitle": "Stop and return to editing",
+    "resumeTitle": "Resume",
+    "pauseTitle": "Pause",
+    "stepBackTitle": "Step backward (←)",
+    "stepForwardTitle": "Step forward (→)",
+    "statistics": "Statistics",
+    "statisticsTitle": "View statistics for this run"
+  },
+  "statusBar": {
+    "places": "Places",
+    "transitions": "Transitions",
+    "arcs": "Arcs",
+    "simTime": "Sim time",
+    "step": "Step",
+    "tool": "Tool",
+    "selection": "Selection",
+    "selectionNone": "none",
+    "selectionOne": "1 element",
+    "selectionMany": "{{count}} elements",
+    "simulation": "Simulation",
+    "unsavedChanges": "Unsaved changes",
+    "saved": "Saved",
+    "saving": "Saving...",
+    "save": "Save"
+  },
+  "topBar": {
+    "unsaved": "unsaved",
+    "smoothAnimationsOn": "Smooth token animations (on)",
+    "smoothAnimationsOff": "Smooth token animations (off)",
+    "menu": {
+      "file": "File",
+      "edit": "Edit",
+      "view": "View",
+      "new": "New",
+      "save": "Save",
+      "saveAs": "Save As...",
+      "export": "Export...",
+      "import": "Import...",
+      "undo": "Undo",
+      "redo": "Redo",
+      "copy": "Copy",
+      "cut": "Cut",
+      "paste": "Paste",
+      "selectAll": "Select All",
+      "delete": "Delete",
+      "saveSelectionAsObject": "Save Selection as Petri Object...",
+      "groupIntoObject": "Group into Object",
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out",
+      "fitView": "Fit View",
+      "arcStyle": "Arc Style",
+      "frameStyle": "Object Outline"
+    }
+  },
+  "statisticsPanel": {
+    "title": "Statistics",
+    "back": "Back",
+    "exportCsv": "CSV",
+    "exportPng": "PNG",
+    "exportSvg": "SVG",
+    "legendPlaces": "Places",
+    "legendTransitions": "Transitions",
+    "chartPlaces": "Tokens per place over time",
+    "chartTransitions": "Transition buffers over time",
+    "noData": "No data was collected for this run.",
+    "nothingToExport": "There is nothing to export yet.",
+    "exportFailed": "Could not export the chart image.",
+    "table": {
+      "series": "Series",
+      "points": "Points",
+      "min": "Min",
+      "max": "Max",
+      "mean": "Mean",
+      "last": "Last"
+    }
+  },
+  "gallery": {
+    "newNet": "New net",
+    "import": "Import",
+    "loadingMore": "Loading more",
+    "sort": {
+      "updatedAt": "Last modified",
+      "createdAt": "Date created"
+    },
+    "filter": {
+      "all": "All",
+      "mine": "My nets",
+      "shared": "Shared with me"
+    },
+    "card": {
+      "created": "Created",
+      "modified": "Modified",
+      "options": "Options",
+      "removeFromGallery": "Remove from gallery",
+      "share": "Share",
+      "rename": "Rename",
+      "delete": "Delete",
+      "confirmDelete": "Delete \"{{name}}\"? This cannot be undone.",
+      "confirmRename": "Rename net:",
+      "openInSimulator": "open in simulator",
+      "openInEditor": "open in editor"
+    },
+    "stats": {
+      "placesTransitions": "{{places}} places · {{transitions}} transitions",
+      "markedPlaces": "{{count}} marked"
+    },
+    "empty": {
+      "noNets": "No nets yet",
+      "noNetsDesc": "Create your first Petri net or generate one from the Chat.",
+      "noShared": "No shared nets yet",
+      "noSharedDesc": "Open a net via a share link and it will appear here."
+    },
+    "guest": {
+      "title": "Sign in to view your nets",
+      "signIn": "Sign in"
+    }
+  },
+  "toolPalette": {
+    "select": "Select",
+    "selectBox": "Select Box",
+    "selectLasso": "Select Lasso",
+    "delete": "Delete",
+    "addPlace": "Add Place",
+    "addTransition": "Add Transition",
+    "addArc": "Add Arc",
+    "addObject": "Add Petri-object",
+    "addElements": "Add Elements",
+    "dragToPlace": "drag to place"
+  },
+  "objectFrame": {
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "memberCount": "{{count}} elements",
+    "emptyHint": "This object is empty.",
+    "startEditing": "Start editing"
+  },
+  "canvas": {
+    "contextMenu": {
+      "createObject": "Create Petri-object",
+      "createObjectTitle": "New Petri-object",
+      "createObjectDefaultName": "Object",
+      "createObjectPlaceholder": "e.g. Generator",
+      "createObjectSubmit": "Create",
+      "editObject": "Edit on its own canvas",
+      "editObjectFailed": "Could not open this Petri-object for editing.",
+      "duplicateObject": "Duplicate",
+      "saveToLibrary": "Save to My Objects",
+      "saveToLibraryEmpty": "This Petri-object is empty — nothing to save.",
+      "saveToLibraryFailed": "Could not save this Petri-object to My Objects.",
+      "saveToLibraryDone": "\"{{name}}\" saved to My Objects.",
+      "ungroup": "Ungroup into plain elements",
+      "deleteObjectWithContents": "Delete object and contents",
+      "removeFromObject": "Remove from object",
+      "deleteElement": "Delete"
+    }
+  },
+  "canvasTabs": {
+    "save": "Save to canvas",
+    "saved": "Petri-object updated on the canvas.",
+    "saveFailed": "Could not write this Petri-object back — it is no longer on the canvas.",
+    "close": "Close",
+    "scrollLeft": "Scroll left",
+    "scrollRight": "Scroll right",
+    "showAll": "Show every object",
+    "showOpenOnly": "Show open canvases only",
+    "levelHint": "Level {{level}} — {{name}}",
+    "confirmClose": "\"{{name}}\" has unsaved changes. Close anyway?",
+    "untitled": "Untitled"
+  },
+  "objectPalette": {
+    "onCanvas": "On this canvas",
+    "noCanvasObjectsLine1": "No Petri-objects on this canvas.",
+    "noCanvasObjectsLine2": "Select elements, right-click and choose Create Petri-object.",
+    "builtIn": "Built-in",
+    "myObjects": "My Objects",
+    "noCustomObjectsLine1": "No custom objects yet.",
+    "noCustomObjectsLine2": "Select elements and use Edit > Save Selection as Petri Object.",
+    "rename": "Rename",
+    "delete": "Delete",
+    "confirmRename": "Rename object:",
+    "confirmDelete": "Delete \"{{name}}\"?"
+  },
+  "workbench": {
+    "loading": "Loading chat…",
+    "generating": "Generating net…",
+    "dismissError": "Dismiss",
+    "panel": {
+      "collapseChat": "Collapse chat panel",
+      "expandChat": "Show chat panel",
+      "collapseCanvas": "Collapse canvas panel",
+      "expandCanvas": "Show canvas panel",
+      "expandChatList": "Show chat list",
+      "chatLabel": "Chat",
+      "canvasLabel": "Canvas",
+      "chatListLabel": "Chats"
+    },
+    "empty": {
+      "title": "No net yet",
+      "hint": "Describe a system in the chat to generate one."
+    },
+    "version": {
+      "prev": "Previous version",
+      "next": "Next version",
+      "copyLink": "Copy link to this version",
+      "copied": "Link copied",
+      "copyFailed": "Could not copy link"
+    },
+    "errors": {
+      "snapshotNotFound": "This version is no longer available.",
+      "snapshotLoadFailed": "Failed to load this version."
+    },
+    "fork": {
+      "save": "Save to My Nets and edit",
+      "defaultName": "Untitled net",
+      "failed": "Could not save net",
+      "dialogTitle": "Save to My Nets",
+      "namePlaceholder": "Net name"
+    },
+    "canvas": {
+      "tokenCounts": "Token counts",
+      "activeBuffers": "Active buffers"
+    }
+  }
+}

@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="net1" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name>
+      <text>Call centre with three operators</text>
+    </name>
+    <page id="page1">
+
+    <place id="c_line">
+      <name>
+        <text>Incoming_Line</text>
+      </name>
+      <initialMarking>
+        <text>1</text>
+      </initialMarking>
+      <graphics>
+        <position x="88" y="278"/>
+      </graphics>
+    </place>
+    <place id="c_wait">
+      <name>
+        <text>Waiting_Calls</text>
+      </name>
+      <graphics>
+        <position x="328" y="278"/>
+      </graphics>
+    </place>
+    <place id="c_idle">
+      <name>
+        <text>Operators_Idle</text>
+      </name>
+      <initialMarking>
+        <text>3</text>
+      </initialMarking>
+      <graphics>
+        <position x="568" y="148"/>
+      </graphics>
+    </place>
+    <place id="c_busy">
+      <name>
+        <text>Operators_Talking</text>
+      </name>
+      <graphics>
+        <position x="808" y="278"/>
+      </graphics>
+    </place>
+    <place id="c_served">
+      <name>
+        <text>Calls_Served</text>
+      </name>
+      <graphics>
+        <position x="1048" y="278"/>
+      </graphics>
+    </place>
+
+    <transition id="c_ring">
+      <name>
+        <text>Call_Arrives</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>5.0</timeDelay>
+        <delayMeanValue>5.0</delayMeanValue>
+        <distribution>exp</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="194" y="282"/>
+      </graphics>
+    </transition>
+    <transition id="c_answer">
+      <name>
+        <text>Answer</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>0.0</timeDelay>
+        <delayMeanValue>0.0</delayMeanValue>
+        <distribution>det</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="434" y="282"/>
+      </graphics>
+    </transition>
+    <transition id="c_hangup">
+      <name>
+        <text>Hang_Up</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <timeDelay>15.0</timeDelay>
+        <delayMeanValue>15.0</delayMeanValue>
+        <distribution>exp</distribution>
+        <priority>1</priority>
+
+</toolspecific>
+      <graphics>
+        <position x="914" y="282"/>
+      </graphics>
+    </transition>
+
+    <arc id="d1" source="c_line" target="c_ring">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="d2" source="c_ring" target="c_line">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="d3" source="c_ring" target="c_wait">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="d4" source="c_wait" target="c_answer">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="d5" source="c_idle" target="c_answer">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="d6" source="c_answer" target="c_busy">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="d7" source="c_busy" target="c_hangup">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="d8" source="c_hangup" target="c_idle">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+    <arc id="d9" source="c_hangup" target="c_served">
+      <graphics/>
+      <inscription>
+        <text>1</text>
+      </inscription>
+    </arc>
+
+    </page>
+  </net>
+</pnml>

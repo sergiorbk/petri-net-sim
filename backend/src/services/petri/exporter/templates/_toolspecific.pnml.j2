@@ -1,0 +1,11 @@
+{# The tool-specific payload, written once under this product's own identity #}
+{# (PetriNetSim); see exporter/toolspecific.py for why there is exactly one. #}
+{# Used as {% raw %}{% call toolspecific() %}...payload...{% endcall %}{% endraw %}. #}
+
+{% macro toolspecific() %}
+{% for identity in toolspecific_identities %}
+<toolspecific tool="{{ identity.tool }}" version="{{ identity.version }}">
+{{ caller() }}
+</toolspecific>
+{% endfor %}
+{% endmacro %}

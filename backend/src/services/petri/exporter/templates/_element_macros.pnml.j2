@@ -1,0 +1,146 @@
+{# Place/transition/arc XML macros, shared by composed.pnml.j2. #}
+{# Field mapping mirrors net.pnml.j2 exactly; kept as a separate file rather #}
+{# than refactoring net.pnml.j2 to import it, since that template is used by #}
+{# the existing, tested single-net export path and is left untouched. #}
+
+{% import "_toolspecific.pnml.j2" as ts %}
+
+{# `id`/`source_id`/`target_id` overrides let the composed exporter apply #}
+{# §2 namespacing at emission time, without mutating the domain model, a #}
+{# ComposedModel's own places/transitions/arcs keep their original ids no #}
+{# matter what a given export run had to rename them to. #}
+
+{% macro place(p, id=none) %}
+<place id="{{ id or p.id }}">
+  <name>
+    <text>{{ p.name }}</text>
+  </name>
+  {% if p.tokens > 0 %}
+  <initialMarking>
+    <text>{{ p.tokens }}</text>
+  </initialMarking>
+  {% endif %}
+  {# A plain place has nothing left to say in toolspecific once <coordinates> #}
+  {# is gone (PNML ISO conformance contract, decision 1): no block at all, #}
+  {# same precedent as a NORMAL arc's own toolspecific-free arc() below. #}
+  <graphics>
+    <position x="{{ (p.graphics.x + PLACE_W / 2) | round_half_up }}" y="{{ (p.graphics.y + PLACE_H / 2) | round_half_up }}"/>
+  </graphics>
+</place>
+{% endmacro %}
+
+{% macro transition(t, id=none) %}
+<transition id="{{ id or t.id }}">
+  <name>
+    <text>{{ t.name }}</text>
+  </name>
+  {% call ts.toolspecific() %}
+    {% if t.probability is not none %}
+    <probability>{{ t.probability }}</probability>
+    {% elif t.distribution %}
+    <timeDelay>{{ t.mean_delay }}</timeDelay>
+    <delayMeanValue>{{ t.mean_delay }}</delayMeanValue>
+    <distribution>{{ t.distribution.value }}</distribution>
+    {% if t.distribution.value in ['norm', 'unif'] %}
+    <standardDeviation>{{ t.standard_deviation }}</standardDeviation>
+    {% endif %}
+    {% else %}
+    <timeDelay>0</timeDelay>
+    <delayMeanValue>0</delayMeanValue>
+    <distribution>det</distribution>
+    {% endif %}
+    {% if t.probability is none %}
+    <priority>{{ t.priority }}</priority>
+    {% endif %}
+  {% endcall %}
+  <graphics>
+    <position x="{{ (t.graphics.x + TRANS_W / 2) | round_half_up }}" y="{{ (t.graphics.y + TRANS_H / 2) | round_half_up }}"/>
+  </graphics>
+</transition>
+{% endmacro %}
+
+{% macro arc(a, id=none, source_id=none, target_id=none) %}
+<arc id="{{ id or a.id }}" source="{{ source_id or a.source_id }}" target="{{ target_id or a.target_id }}">
+  <graphics/>
+  <inscription>
+    <text>{{ a.weight }}</text>
+  </inscription>
+  {% if a.arc_type != 'normal' %}
+  {% call ts.toolspecific() %}
+    {# .value, not the bare enum, Python's Enum.__str__ (str(ArcType.INHIBITOR) #}
+    {# == "ArcType.INHIBITOR") wins over the str mixin on 3.11+, and petri- #}
+    {# server's parser compares this text against the literal "inhibitor"/"read" #}
+    {# (PnmlParser.java:317). net.pnml.j2's own arc block carries the same fix. #}
+    <arcType>{{ a.arc_type.value }}</arcType>
+  {% endcall %}
+  {% endif %}
+</arc>
+{% endmacro %}
+
+{# A `<referencePlace>`/`<referenceTransition>` never carries an #}
+{# `<initialMarking>` (§8.3), a reference node stands for a node defined #}
+{# elsewhere, and a marking here would double the tokens once a #}
+{# conformant reader flattens the two into one. A fusion node's own #}
+{# marking survives only as `<fusedInitialMarking>`, for drawings, since #}
+{# it has no effect after PetriObjModel.wire() replaces the place. #}
+
+{% macro reference_place(r, role) %}
+{% if role == 'fusion' %}
+<!-- This place is shared with "{{ r.ref }}", which holds the marking for both. -->
+{% elif r.stands_for %}
+<!-- Stands for "{{ r.stands_for }}", so this page can draw an arc to it. -->
+{% endif %}
+<referencePlace id="{{ r.id }}" ref="{{ r.ref }}">
+  <name>
+    <text>{{ r.name }}</text>
+  </name>
+  {% call ts.toolspecific() %}
+    <referenceRole>{{ role }}</referenceRole>
+    {% if r.fused_marking %}
+    <fusedInitialMarking>{{ r.fused_marking }}</fusedInitialMarking>
+    {% endif %}
+  {% endcall %}
+  <graphics>
+    <position x="{{ (r.x + PLACE_W / 2) | round_half_up }}" y="{{ (r.y + PLACE_H / 2) | round_half_up }}"/>
+  </graphics>
+</referencePlace>
+{% endmacro %}
+
+{% macro reference_transition(r, role) %}
+{% if r.stands_for %}
+<!-- Stands for "{{ r.stands_for }}", so this page can draw an arc to it. -->
+{% endif %}
+<referenceTransition id="{{ r.id }}" ref="{{ r.ref }}">
+  <name>
+    <text>{{ r.name }}</text>
+  </name>
+  {% call ts.toolspecific() %}
+    <referenceRole>{{ role }}</referenceRole>
+    {% if r.fused_marking %}
+    <fusedInitialMarking>{{ r.fused_marking }}</fusedInitialMarking>
+    {% endif %}
+  {% endcall %}
+  <graphics>
+    <position x="{{ (r.x + TRANS_W / 2) | round_half_up }}" y="{{ (r.y + TRANS_H / 2) | round_half_up }}"/>
+  </graphics>
+</referenceTransition>
+{% endmacro %}
+
+{# The arc realising a transitionToPlace link. placeToTransition links are #}
+{# retired and refused before a LinkArc ever exists (composed_document.py), #}
+{# so `a.informational` below is always False today; the branch stays only #}
+{# because LinkArc still carries the field. #}
+
+{% macro link_arc(a) %}
+<arc id="{{ a.id }}" source="{{ a.source_id }}" target="{{ a.target_id }}">
+  <graphics/>
+  <inscription>
+    <text>{{ a.weight }}</text>
+  </inscription>
+  {% if a.informational %}
+  {% call ts.toolspecific() %}
+    <informational>true</informational>
+  {% endcall %}
+  {% endif %}
+</arc>
+{% endmacro %}

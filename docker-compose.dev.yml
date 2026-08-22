@@ -1,0 +1,48 @@
+# =============================================================================
+# Development overlay — hot reload for both backend and frontend.
+# =============================================================================
+# Layer it on top of the base stack:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# (or simply `make dev`). Source is bind-mounted, so edits on the host reload
+# live. The frontend is served by the Vite dev server on :6203 instead of nginx.
+# =============================================================================
+
+services:
+  backend:
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      DOCS_ENABLED: "true"
+      UVICORN_WORKERS: "1"
+    # Override the production entrypoint: run migrations, then uvicorn --reload.
+    # Single-element list so the whole script reaches `sh -c` intact (a scalar
+    # string would be tokenized and split at `&&`).
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "uv run alembic upgrade head && uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      # Bind-mount the source for live reload. The named volume keeps the
+      # image's pre-built virtualenv from being shadowed by the bind mount.
+      - ./backend:/app
+      - backend_venv:/app/.venv
+
+  frontend:
+    build:
+      target: dev
+    # Replace the production 6200:80 mapping with the Vite dev port.
+    ports: !override
+      - "${FRONTEND_DEV_PORT:-6203}:6203"
+    environment:
+      VITE_PROXY_TARGET: "http://backend:8000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  backend_venv:
+  frontend_node_modules:

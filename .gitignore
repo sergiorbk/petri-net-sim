@@ -1,0 +1,49 @@
+# ─── Python / backend ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.venvm/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.egg-info/
+.scannerwork/
+.sonar/
+sonar-project.properties
+
+# ─── Node / frontend ─────────────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+coverage/
+
+# ─── Environment & secrets ───────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+
+# ─── IDE / OS ────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── AI assistant tooling ────────────────────────────────────────────────────
+# Local agent state stays out (settings, worktrees, session files); the shared
+# skills under .claude/skills/ are part of the repo, same as AGENTS.md.
+.claude/*
+!.claude/skills/
+.mcp.json
+.gstack/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log

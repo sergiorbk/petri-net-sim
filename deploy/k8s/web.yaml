@@ -1,0 +1,62 @@
+# The web server: nginx serving the built UI and proxying /api, /mcp and the
+# docs to the API Service. Static, so scale it freely.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: petri-net-sim-web
+  namespace: petri-net-sim
+  labels:
+    app.kubernetes.io/name: petri-net-sim
+    app.kubernetes.io/component: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: petri-net-sim
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: petri-net-sim
+        app.kubernetes.io/component: web
+    spec:
+      containers:
+        - name: web
+          # Not published by this project: only the all-in-one image is.
+          # Build frontend/Dockerfile (target: prod) into your own registry and
+          # name it here, pinned to a tag rather than latest. See README.md.
+          image: your-registry/petri-net-sim-web:v1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: petri-net-sim-web
+  namespace: petri-net-sim
+spec:
+  selector:
+    app.kubernetes.io/name: petri-net-sim
+    app.kubernetes.io/component: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

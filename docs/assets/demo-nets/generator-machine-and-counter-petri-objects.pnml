@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="net1" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name>
+      <text>Generator, machine and counter (Petri-objects)</text>
+    </name>
+    <page id="object0">
+      <name>
+        <text>Free</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <petriObject index="0" name="Free" priority="0"
+                      x="0" y="0"/>
+
+</toolspecific>
+
+
+
+
+      
+    </page>
+    <page id="object1">
+      <name>
+        <text>Generator</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <petriObject index="1" name="Generator" priority="2"
+                      x="40" y="60" width="380" height="260"/>
+
+</toolspecific>
+
+      <place id="g_ready">
+  <name>
+    <text>Ready</text>
+  </name>
+  <initialMarking>
+    <text>1</text>
+  </initialMarking>
+  <graphics>
+    <position x="118" y="158"/>
+  </graphics>
+</place>
+
+      <!-- This place is shared with "m_in", which holds the marking for both. -->
+<referencePlace id="g_out" ref="m_in">
+  <name>
+    <text>Out</text>
+  </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+    <referenceRole>fusion</referenceRole>
+
+</toolspecific>
+  <graphics>
+    <position x="348" y="158"/>
+  </graphics>
+</referencePlace>
+
+
+      <transition id="g_emit">
+  <name>
+    <text>Emit</text>
+  </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+    <timeDelay>8.0</timeDelay>
+    <delayMeanValue>8.0</delayMeanValue>
+    <distribution>exp</distribution>
+    <priority>1</priority>
+
+</toolspecific>
+  <graphics>
+    <position x="214" y="162"/>
+  </graphics>
+</transition>
+
+
+
+      <arc id="ga1" source="g_ready" target="g_emit">
+  <graphics/>
+  <inscription>
+    <text>1</text>
+  </inscription>
+</arc>
+
+      <arc id="ga2" source="g_emit" target="g_ready">
+  <graphics/>
+  <inscription>
+    <text>1</text>
+  </inscription>
+</arc>
+
+      <arc id="ga3" source="g_emit" target="g_out">
+  <graphics/>
+  <inscription>
+    <text>1</text>
+  </inscription>
+</arc>
+
+      
+    </page>
+    <page id="object2">
+      <name>
+        <text>Machine</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <petriObject index="2" name="Machine" priority="1"
+                      x="500" y="60" width="620" height="260"/>
+
+</toolspecific>
+
+      <place id="m_in">
+  <name>
+    <text>In</text>
+  </name>
+  <graphics>
+    <position x="578" y="158"/>
+  </graphics>
+</place>
+
+      <place id="m_free">
+  <name>
+    <text>Free</text>
+  </name>
+  <initialMarking>
+    <text>1</text>
+  </initialMarking>
+  <graphics>
+    <position x="728" y="268"/>
+  </graphics>
+</place>
+
+      <place id="m_busy">
+  <name>
+    <text>Busy</text>
+  </name>
+  <graphics>
+    <position x="888" y="158"/>
+  </graphics>
+</place>
+
+      <!-- This place is shared with "c_in", which holds the marking for both. -->
+<referencePlace id="m_out" ref="c_in">
+  <name>
+    <text>Out</text>
+  </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+    <referenceRole>fusion</referenceRole>
+
+</toolspecific>
+  <graphics>
+    <position x="1058" y="158"/>
+  </graphics>
+</referencePlace>
+
+
+      <transition id="m_start">
+  <name>
+    <text>Start</text>
+  </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+    <timeDelay>0.0</timeDelay>
+    <delayMeanValue>0.0</delayMeanValue>
+    <distribution>det</distribution>
+    <priority>1</priority>
+
+</toolspecific>
+  <graphics>
+    <position x="654" y="162"/>
+  </graphics>
+</transition>
+
+      <transition id="m_finish">
+  <name>
+    <text>Finish</text>
+  </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+    <timeDelay>12.0</timeDelay>
+    <delayMeanValue>12.0</delayMeanValue>
+    <distribution>exp</distribution>
+    <priority>1</priority>
+
+</toolspecific>
+  <graphics>
+    <position x="954" y="162"/>
+  </graphics>
+</transition>
+
+
+
+      <arc id="ma1" source="m_in" target="m_start">
+  <graphics/>
+  <inscription>
+    <text>1</text>
+  </inscription>
+</arc>
+
+      <arc id="ma2" source="m_free" target="m_start">
+  <graphics/>
+  <inscription>
+    <text>1</text>
+  </inscription>
+</arc>
+
+      <arc id="ma3" source="m_start" target="m_busy">
+  <graphics/>
+  <inscription>
+    <text>1</text>
+  </inscription>
+</arc>
+
+      <arc id="ma4" source="m_busy" target="m_finish">
+  <graphics/>
+  <inscription>
+    <text>1</text>
+  </inscription>
+</arc>
+
+      <arc id="ma5" source="m_finish" target="m_free">
+  <graphics/>
+  <inscription>
+    <text>1</text>
+  </inscription>
+</arc>
+
+      <arc id="ma6" source="m_finish" target="m_out">
+  <graphics/>
+  <inscription>
+    <text>1</text>
+  </inscription>
+</arc>
+
+      
+    </page>
+    <page id="object3">
+      <name>
+        <text>Counter</text>
+      </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+        <petriObject index="3" name="Counter" priority="0"
+                      x="1200" y="60" width="340" height="260"/>
+
+</toolspecific>
+
+      <place id="c_in">
+  <name>
+    <text>In</text>
+  </name>
+  <graphics>
+    <position x="1278" y="158"/>
+  </graphics>
+</place>
+
+      <place id="c_total">
+  <name>
+    <text>Total</text>
+  </name>
+  <graphics>
+    <position x="1478" y="158"/>
+  </graphics>
+</place>
+
+
+      <transition id="c_count">
+  <name>
+    <text>Count</text>
+  </name>
+<toolspecific tool="PetriNetSim" version="1.0.0">
+    <timeDelay>0.0</timeDelay>
+    <delayMeanValue>0.0</delayMeanValue>
+    <distribution>det</distribution>
+    <priority>1</priority>
+
+</toolspecific>
+  <graphics>
+    <position x="1364" y="162"/>
+  </graphics>
+</transition>
+
+
+
+      <arc id="ca1" source="c_in" target="c_count">
+  <graphics/>
+  <inscription>
+    <text>1</text>
+  </inscription>
+</arc>
+
+      <arc id="ca2" source="c_count" target="c_total">
+  <graphics/>
+  <inscription>
+    <text>1</text>
+  </inscription>
+</arc>
+
+      
+    </page>
+
+<toolspecific tool="PetriNetSim" version="1.0.0">
+      <petriObjectLinks>
+        <link type="placeFusion"
+              sourceObject="1" sourceElement="1"
+              sourceElementId="g_out"
+              targetObject="2" targetElement="0"
+              targetElementId="m_in"
+/>
+        <link type="placeFusion"
+              sourceObject="2" sourceElement="3"
+              sourceElementId="m_out"
+              targetObject="3" targetElement="0"
+              targetElementId="c_in"
+/>
+      </petriObjectLinks>
+
+</toolspecific>
+  </net>
+</pnml>

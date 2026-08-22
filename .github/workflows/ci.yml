@@ -1,0 +1,89 @@
+name: CI
+
+# One trunk, and everything reaches it through a pull request. This is the
+# gate on that door.
+#
+# No branch filter on purpose: the trunk's name is the repository's default
+# branch and is not repeated here, so renaming it never leaves this file
+# quietly matching nothing.
+#
+# Deliberately NOT run on every push to the trunk either. Work lands there in
+# small, frequent merges, and a run per merge repeats what the run on the
+# pull request said a moment earlier. What is left is the check that gates
+# code going in, plus a manual button for when the trunk itself needs
+# verifying on demand.
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend - tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: petri_net_sim_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+      - name: Run tests
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: petri_net_sim_test
+          DB_USER: postgres
+          DB_PASSWORD: testpass
+          AUTH_JWT_SECRET_KEY: test-secret-key-for-ci-only
+        run: uv run pytest --tb=short
+
+  frontend:
+    name: Frontend - typecheck & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+  docker:
+    name: Docker - build images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build ./backend
+      - name: Build frontend image
+        run: docker build ./frontend
+      - name: Build all-in-one image
+        # Context is the repo root, not deploy/allinone/: the frontend build
+        # stage needs frontend/ and the final stage needs backend/, both
+        # siblings of deploy/ (see the Dockerfile's own header comment).
+        run: docker build -f deploy/allinone/Dockerfile -t petri-net-sim-allinone .

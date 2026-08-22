@@ -1,0 +1,589 @@
+{
+  "sidebar": {
+    "newChat": "Новий чат",
+    "searchChats": "Пошук чатiв...",
+    "noChats": "Розмов поки немає"
+  },
+  "chat": {
+    "placeholder": "Опишiть вашу систему...",
+    "send": "Надiслати повiдомлення",
+    "upload": "Завантажити файл",
+    "microphone": "Голосовий ввiд",
+    "stop": "Зупинити генерацiю",
+    "modelSelector": {
+      "myModels": "Мої моделi",
+      "loading": "Завантаження...",
+      "select": "Оберiть модель",
+      "addModel": "Додати модель"
+    },
+    "netStyle": {
+      "label": "Стиль мережi",
+      "classical": "Класична",
+      "classicalHint": "Побудувати єдину плоску мережу Петрi",
+      "object": "Об'єктна",
+      "objectHint": "Огорнути кожен логiчний блок у власний Petri-об'єкт (модулi ISO/IEC 15909)"
+    },
+    "direction": {
+      "label": "Напрям побудови",
+      "horizontalHint": "Горизонтально: мережа росте зліва направо, паралельні кроки стають один під одним",
+      "verticalHint": "Вертикально: мережа росте згори вниз, паралельні кроки стають поруч"
+    }
+  },
+  "account": {
+    "profile": "Профiль",
+    "settings": "Налаштування",
+    "logout": "Вийти"
+  },
+  "settings": {
+    "title": "Налаштування",
+    "nav": {
+      "appearance": "Зовнiшнiй вигляд",
+      "profile": "Профiль",
+      "llmModels": "LLM Моделi",
+      "apiKeys": "API Ключi",
+      "mcp": "MCP",
+      "api": "OpenAPI"
+    },
+    "profile": {
+      "avatar": "Аватар",
+      "fullName": "Повне iм'я",
+      "fullNamePlaceholder": "Ваше iм'я",
+      "displayName": "Як асистент має вас називати?",
+      "displayNamePlaceholder": "Бажане iм'я",
+      "workType": "Чим ви займаєтесь?",
+      "workTypePlaceholder": "Оберiть...",
+      "customInstructions": "Iнструкцiї для LLM / агента",
+      "customInstructionsPlaceholder": "Напр. Вiдповiдай коротко i по сутi.",
+      "customInstructionsHint": "Асистент враховуватиме це у всiх чатах.",
+      "save": "Зберегти",
+      "saving": "Збереження...",
+      "saved": "Збережено",
+      "errorSaving": "Не вдалося зберегти профiль.",
+      "workTypes": {
+        "software_engineer": "Розробник програмного забезпечення",
+        "data_scientist": "Data Scientist",
+        "designer": "Дизайнер",
+        "product_manager": "Product Manager",
+        "researcher": "Дослiдник / Науковець",
+        "student": "Студент",
+        "other": "Iнше"
+      }
+    },
+    "theme": "Тема",
+    "themeLight": "Свiтла",
+    "themeDark": "Темна",
+    "themeSystem": "Системна",
+    "language": "Мова",
+    "languageEn": "Англiйська",
+    "languageUk": "Українська",
+    "apiKeys": {
+      "title": "API ключi",
+      "create": "Створити ключ",
+      "cancel": "Скасувати",
+      "namePlaceholder": "Назва ключа (необов'язково)",
+      "revoke": "Вiдкликати",
+      "confirmRevoke": "Вiдкликати цей API ключ? Цю дiю не можна скасувати.",
+      "empty": "API ключiв ще немає",
+      "loading": "Завантаження...",
+      "unnamed": "Без назви",
+      "created": "Створено",
+      "lastUsed": "Останнє використання",
+      "never": "нiколи",
+      "createdRawWarning": "Скопiюйте цей ключ зараз. З мiркувань безпеки вiн бiльше не буде показаний.",
+      "copy": "Копiювати",
+      "copied": "Скопiйовано",
+      "modelLabel": "LLM модель",
+      "modelDefault": "За замовчуванням",
+      "modelNoProfiles": "Профiлiв немає — додайте в LLM Профiлi",
+      "boundModel": "Модель"
+    },
+    "llmProfiles": {
+      "title": "LLM Профiлi",
+      "description": "Пiдключiть власнi LLM облiкові данi для використання власних моделей у чатi.",
+      "loading": "Завантаження...",
+      "empty": "Профiлiв ще немає",
+      "addProfile": "Додати профiль",
+      "confirmDelete": "Видалити цей LLM профiль? Цю дiю не можна скасувати.",
+      "created": "Додано",
+      "testedOn": "Перевiрено",
+      "test": "Перевiрити з'єднання",
+      "delete": "Видалити",
+      "testSuccess": "З'єднання успiшне",
+      "testFailed": "З'єднання не вдалося",
+      "form": {
+        "name": "Назва профiлю",
+        "namePlaceholder": "Мiй OpenAI",
+        "provider": "Провайдер",
+        "model": "Модель",
+        "apiKey": "API ключ",
+        "apiKeyPlaceholder": "sk-...",
+        "baseUrl": "Базова URL",
+        "baseUrlPlaceholder": "https://api.openai.com/v1",
+        "optional": "необов'язково",
+        "save": "Зберегти",
+        "cancel": "Скасувати"
+      }
+    },
+    "integrations": {
+      "loading": "Завантаження даних сервера...",
+      "configError": "Не вдалося прочитати конфігурацію сервера. Дані для підключення недоступні.",
+      "copy": "Копіювати",
+      "copied": "Скопійовано",
+      "on": "Увімк.",
+      "off": "Вимк.",
+      "howTo": "Як підключитися",
+      "apiKeysLink": "API-ключі",
+      "mcp": {
+        "title": "MCP",
+        "description": "Дозвольте MCP-клієнту (Claude Desktop, Claude Code, Cursor та іншим) будувати, редагувати й моделювати мережі Петрі у вашому обліковому записі.",
+        "switchLabel": "Дозволити доступ через MCP",
+        "switchDescription": "Коли вимкнено, сервер відповідає 403 на кожен MCP-запит з вашими API-ключами. Самі ключі всюди інде працюють як і раніше.",
+        "serverDisabled": "На цьому сервері MCP вимкнено, тож наведена нижче адреса не відповідатиме, доки адміністратор його не увімкне.",
+        "endpointLabel": "Адреса endpoint",
+        "configLabel": "Конфігурація клієнта",
+        "transportNote": "Транспорт: streamable HTTP. Автентифікація: заголовок Authorization: Bearer з вашим API-ключем.",
+        "step1": "Створіть API-ключ у розділі <keys>API-ключі</keys> та скопіюйте його. Він показується один раз.",
+        "step2": "Додайте наведену конфігурацію до свого MCP-клієнта, підставивши ключ замість заповнювача.",
+        "step3": "Перезапустіть клієнт. Інструменти для мереж Петрі з'являться в його списку інструментів."
+      },
+      "api": {
+        "title": "OpenAPI",
+        "description": "HTTP API, сумісний з OpenAI. Спрямуйте на нього будь-яку клієнтську бібліотеку OpenAI і генеруйте мережі Петрі зі свого коду.",
+        "switchLabel": "Дозволити доступ через API",
+        "switchDescription": "Коли вимкнено, сервер відповідає 403 на запити з вашими API-ключами. Вебзастосунок працює далі, бо він користується сесією браузера, а не ключем.",
+        "serverDisabled": "На цьому сервері HTTP API вимкнено, тож наведені нижче адреси не відповідатимуть, доки адміністратор його не увімкне.",
+        "baseUrlLabel": "Базова адреса",
+        "modelLabel": "Модель",
+        "exampleLabel": "Приклад запиту",
+        "step1": "Створіть API-ключ у розділі <keys>API-ключі</keys> та скопіюйте його. Він показується один раз.",
+        "step2": "Вкажіть наведену базову адресу у своєму OpenAI-клієнті, а API-ключ — як його ключ.",
+        "step3": "Надішліть chat completion. У відповіді буде згенерована мережа та посилання на завантаження її PNML.",
+        "schemaTitle": "Довідка API",
+        "docsLink": "Інтерактивна документація",
+        "schemaLink": "Схема OpenAPI",
+        "docsDisabled": "Документацію API на цьому сервері вимкнено."
+      }
+    }
+  },
+  "inspector": {
+    "hints": {
+      "dist": {
+        "immediate": "Без затримки — токен проходить миттєво.\nДля: маршрутизаторів, сортувальників, миттєвого розгалуження.\nУвага: уникайте self-loop (P→T→P) — спричиняє лайвлок.",
+        "exp": "Експоненційна випадкова затримка, без пам'яті.\nДля: надходжень, відмов, часу обслуговування.\nНапр. mean=5 → в середньому 5 с між спрацюваннями.",
+        "norm": "Нормальний розподіл (дзвін-крива).\nДля: обробки з природним розкидом.\nНапр. mean=10, std=2 → зазвичай 8–12 с.",
+        "unif": "Рівномірний в [mean−std, mean+std].\nДля: коли будь-яке значення в діапазоні рівно ймовірне.\nНапр. mean=10, std=3 → рівномірно 7–13 с.",
+        "det": "Фіксована постійна затримка, однакова щоразу.\nДля: конвеєрів, відомих фіксованих тривалостей.\nНапр. mean=3 → завжди рівно 3 с."
+      },
+      "meanDelay": "Середній час (одиниці симуляції), який перехід утримує токен до спрацювання.\n→ Exp: середнє розподілу\n→ Normal / Uniform: центр діапазону\n→ Det: точна фіксована тривалість\nПриклад: mean=60 при шкалі секунди → середній час утримання 1 хв.",
+      "stdDeviation": "Розкид навколо середнього. Лише для Normal та Uniform.\n→ Normal: ~68% затримок у [mean−std, mean+std]\n→ Uniform: значення рівномірно з [mean−std, mean+std]\nДля Exp та Det встановіть 0 (не впливає).\nПриклад: mean=10, std=3 → зазвичай 7–13 с.",
+      "priority": "Порядок спрацювання коли кілька увімкнених переходів конкурують за один токен.\nЗначення за замовчуванням — 1 (звичайний). Більший номер спрацьовує першим.\nПереходи з однаковим пріоритетом вирішуються через ваги ймовірності.\nПриклад: T1(priority=2) завжди спрацьовує раніше T2(priority=1) незалежно від ймовірності.",
+      "probability": "Вага спрацювання серед переходів з однаковим пріоритетом, що конкурують з одного місця.\nВводиться в % (0–100). Сума конкуруючих переходів не може перевищувати 100%.\nПереходи без вказаної ймовірності рівномірно ділять залишок.\nЗалиште порожнім, якщо перехід не має конкурентів з однаковим пріоритетом."
+    },
+    "properties": "Властивості",
+    "expandProperties": "Розгорнути властивості",
+    "collapseProperties": "Згорнути властивості",
+    "missingElement": "Обраний елемент більше не існує.",
+    "multiSelect": "Вибрано {{count}} елементів. Групове редагування недоступне — оберіть один елемент для редагування його властивостей.",
+    "subtitle": {
+      "multipleElements": "Кілька елементів",
+      "netProperties": "Властивості мережі",
+      "place": "Позиція",
+      "transition": "Перехід",
+      "arc": "Дуга",
+      "object": "Рамка об'єкта",
+      "link": "Зв'язок об'єктів"
+    },
+    "section": {
+      "net": "Мережа",
+      "identification": "Ідентифікація",
+      "marking": "Маркування",
+      "position": "Координати",
+      "firing": "Спрацювання",
+      "endpoints": "Вузли",
+      "behavior": "Поведінка"
+    },
+    "field": {
+      "id": "ID",
+      "name": "Назва",
+      "counts": "Кількість",
+      "countsValue": "{{places}} позицій · {{transitions}} переходів · {{arcs}} дуг",
+      "arcStyle": "Стиль дуги",
+      "frameStyle": "Обводка об'єкта",
+      "initialTokens": "Початкові токени",
+      "priority": "Пріоритет",
+      "distribution": "Розподіл",
+      "meanDelay": "Середня затримка",
+      "stdDeviation": "Стд. відхилення",
+      "probability": "Ймовірність (%)",
+      "probabilityNone": "(немає)",
+      "source": "Джерело",
+      "target": "Ціль",
+      "type": "Тип",
+      "weight": "Вага",
+      "placeLabel": "{{name}} (позиція)",
+      "transitionLabel": "{{name}} (перехід)",
+      "conflictExplicit": "{{name}}: {{total}}% явно",
+      "conflictRemainingSplit": " — {{remaining}}% розподілено між {{count}} незаданими ({{each}}% кожному)",
+      "conflictRemainingUnallocated": " — {{remaining}}% не розподілено",
+      "informational": "Інформаційний (тест, не споживає)"
+    },
+    "distributions": {
+      "immediate": "Миттєвий (без затримки)",
+      "exp": "Експоненційний",
+      "norm": "Нормальний",
+      "unif": "Рівномірний",
+      "det": "Детермінований (фіксований)"
+    },
+    "arcTypes": {
+      "NORMAL": "Звичайна",
+      "INHIBITOR": "Інгібуюча",
+      "READ": "Читаюча"
+    },
+    "linkTypes": {
+      "placeFusion": "Злиття позицій (спільна позиція)",
+      "transitionToPlace": "Перехід → позиція (зовнішній вихід)",
+      "placeToTransition": "Позиція → перехід (зовнішній вхід)"
+    }
+  },
+  "emptyState": {
+    "heading": "Petri Net Sim",
+    "subheading": "Опишiть систему та отримайте мережу Петрi"
+  },
+  "auth": {
+    "subtitle": "Увiйдiть для продовження",
+    "signInWithGoogle": "Увiйти через Google",
+    "signingIn": "Вхiд...",
+    "authError": "Помилка автентифiкацiї",
+    "tryAgain": "Спробувати знову",
+    "or": "або",
+    "tabs": {
+      "signIn": "Вхiд",
+      "signUp": "Реєстрацiя"
+    },
+    "signIn": {
+      "email": "Email",
+      "password": "Пароль",
+      "submit": "Увiйти",
+      "error": "Невiрний email або пароль"
+    },
+    "signUp": {
+      "email": "Email",
+      "password": "Пароль",
+      "name": "Iм'я (необов'язково)",
+      "submit": "Створити акаунт",
+      "error": "Не вдалося створити акаунт"
+    }
+  },
+  "common": {
+    "cancel": "Скасувати",
+    "save": "Зберегти",
+    "create": "Створити",
+    "creating": "Створення…",
+    "comingSoon": "Незабаром",
+    "loading": "Завантаження…",
+    "name": "Назва"
+  },
+  "dialog": {
+    "newNet": {
+      "title": "Нова мережа Петрі",
+      "basedOn": "На основі",
+      "emptyNet": "Порожня мережа",
+      "namePlaceholder": "Назва мережі"
+    },
+    "saveObject": {
+      "title": "Зберегти вибір як об'єкт Петрі",
+      "description": "Опис (необов'язково)",
+      "namePlaceholder": "напр. Генератор",
+      "descriptionPlaceholder": "Що моделює цей об'єкт?",
+      "saveFailed": "Не вдалося зберегти цей об'єкт Петрі."
+    },
+    "export": {
+      "title": "Експорт",
+      "format": "Формат",
+      "submit": "Експортувати",
+      "pnml": {
+        "label": "PNML (.pnml)",
+        "description": "Petri Net Markup Language — стандартний формат обміну"
+      },
+      "xml": {
+        "label": "XML (.xml)",
+        "description": "Той самий документ PNML із розширенням .xml для інструментів, які його вимагають"
+      }
+    },
+    "import": {
+      "title": "Імпорт",
+      "format": "Формат",
+      "submit": "Обрати файл...",
+      "confirmDiscard": "Є незбережені зміни. Відхилити та імпортувати?",
+      "pnml": {
+        "label": "PNML (.pnml)",
+        "description": "Petri Net Markup Language — стандартний формат обміну"
+      },
+      "json": {
+        "label": "JSON (.json)",
+        "description": "Власне JSON-представлення"
+      }
+    }
+  },
+  "agent": {
+    "running": "Виконується",
+    "failed": "Помилка",
+    "done": "Готово",
+    "input": "Вхід",
+    "result": "Результат"
+  },
+  "shared": {
+    "emptyChat": "Цей чат порожній.",
+    "netNotFound": "Мережу не знайдено або доступ закрито.",
+    "failedToLoad": "Не вдалося завантажити.",
+    "goToGallery": "Перейти до галереї",
+    "openInEditor": "Відкрити в редакторі",
+    "opening": "Відкриття…",
+    "signInToEdit": "Увійдіть для редагування"
+  },
+  "simulator": {
+    "run": "Запустити",
+    "runAndStep": "Покроково",
+    "duration": "Тривалість",
+    "visual": "Візуальний",
+    "scientific": "Науковий",
+    "step": "Крок",
+    "every": "Кожні",
+    "steps": "кроків",
+    "reset": "Скинути",
+    "computing": "Обчислення...",
+    "running": "Виконується",
+    "paused": "Призупинено",
+    "done": "Завершено",
+    "readOnlyNotice": "Симуляція відключена в режимі перегляду.",
+    "signInToRun": "Увійдіть для запуску симуляцій",
+    "runTitle": "Запустити симуляцію (авто-відтворення)",
+    "runAndStepTitle": "Запустити в режимі покрокового відтворення",
+    "runToEnd": "Кінцевий стан",
+    "runToEndTitle": "Обчислити весь прогін і показати його кінцевий стан, без відтворення анімації",
+    "rerunTitle": "Запустити повторно",
+    "resetTitle": "Скинути до початкового маркування",
+    "stopTitle": "Зупинити та повернутись до редагування",
+    "resumeTitle": "Продовжити",
+    "pauseTitle": "Пауза",
+    "stepBackTitle": "Крок назад (←)",
+    "stepForwardTitle": "Крок вперед (→)",
+    "statistics": "Статистика",
+    "statisticsTitle": "Переглянути статистику цього запуску"
+  },
+  "statusBar": {
+    "places": "Позиції",
+    "transitions": "Переходи",
+    "arcs": "Дуги",
+    "simTime": "Час сим.",
+    "step": "Крок",
+    "tool": "Інструмент",
+    "selection": "Вибір",
+    "selectionNone": "немає",
+    "selectionOne": "1 елемент",
+    "selectionMany": "{{count}} елементи",
+    "simulation": "Симуляція",
+    "unsavedChanges": "Незбережені зміни",
+    "saved": "Збережено",
+    "saving": "Збереження...",
+    "save": "Зберегти"
+  },
+  "topBar": {
+    "unsaved": "незбережено",
+    "smoothAnimationsOn": "Анімація токенів (увімк.)",
+    "smoothAnimationsOff": "Анімація токенів (вимк.)",
+    "menu": {
+      "file": "Файл",
+      "edit": "Правка",
+      "view": "Вигляд",
+      "new": "Новий",
+      "save": "Зберегти",
+      "saveAs": "Зберегти як...",
+      "export": "Експорт...",
+      "import": "Імпорт...",
+      "undo": "Скасувати",
+      "redo": "Повторити",
+      "copy": "Копіювати",
+      "cut": "Вирізати",
+      "paste": "Вставити",
+      "selectAll": "Вибрати все",
+      "delete": "Видалити",
+      "saveSelectionAsObject": "Зберегти вибір як об'єкт Петрі...",
+      "groupIntoObject": "Згрупувати в об'єкт",
+      "zoomIn": "Збільшити",
+      "zoomOut": "Зменшити",
+      "fitView": "Вписати",
+      "arcStyle": "Стиль дуг",
+      "frameStyle": "Обводка об'єктів"
+    }
+  },
+  "statisticsPanel": {
+    "title": "Статистика",
+    "back": "Назад",
+    "exportCsv": "CSV",
+    "exportPng": "PNG",
+    "exportSvg": "SVG",
+    "legendPlaces": "Позиції",
+    "legendTransitions": "Переходи",
+    "chartPlaces": "Кількість фішок у позиціях у часі",
+    "chartTransitions": "Буфери переходів у часі",
+    "noData": "Для цього запуску дані не зібрано.",
+    "nothingToExport": "Поки що нічого експортувати.",
+    "exportFailed": "Не вдалося експортувати зображення графіка.",
+    "table": {
+      "series": "Ряд",
+      "points": "Точок",
+      "min": "Мін",
+      "max": "Макс",
+      "mean": "Середнє",
+      "last": "Останнє"
+    }
+  },
+  "gallery": {
+    "newNet": "Нова мережа",
+    "import": "Імпорт",
+    "loadingMore": "Завантаження",
+    "sort": {
+      "updatedAt": "Остання зміна",
+      "createdAt": "Дата створення"
+    },
+    "filter": {
+      "all": "Всі",
+      "mine": "Мої мережі",
+      "shared": "Поширені зі мною"
+    },
+    "card": {
+      "created": "Створено",
+      "modified": "Змінено",
+      "options": "Параметри",
+      "removeFromGallery": "Видалити з галереї",
+      "share": "Поділитись",
+      "rename": "Перейменувати",
+      "delete": "Видалити",
+      "confirmDelete": "Видалити \"{{name}}\"? Цю дію не можна скасувати.",
+      "confirmRename": "Перейменувати мережу:",
+      "openInSimulator": "відкрити в симуляторі",
+      "openInEditor": "відкрити в редакторі"
+    },
+    "stats": {
+      "placesTransitions": "{{places}} позицій · {{transitions}} переходів",
+      "markedPlaces": "{{count}} з маркерами"
+    },
+    "empty": {
+      "noNets": "Мереж ще немає",
+      "noNetsDesc": "Створіть першу мережу Петрі або згенеруйте її через чат.",
+      "noShared": "Спільних мереж ще немає",
+      "noSharedDesc": "Відкрийте мережу за посиланням — вона з'явиться тут."
+    },
+    "guest": {
+      "title": "Увійдіть, щоб переглянути мережі",
+      "signIn": "Увійти"
+    }
+  },
+  "toolPalette": {
+    "select": "Вибір",
+    "selectBox": "Прямокутний вибір",
+    "selectLasso": "Лассо",
+    "delete": "Видалити",
+    "addPlace": "Додати позицію",
+    "addTransition": "Додати перехід",
+    "addArc": "Додати дугу",
+    "addObject": "Додати об'єкт Петрі",
+    "addElements": "Додати елементи",
+    "dragToPlace": "перетягніть для розміщення"
+  },
+  "objectFrame": {
+    "expand": "Розгорнути",
+    "collapse": "Згорнути",
+    "memberCount": "елементів: {{count}}",
+    "emptyHint": "Цей об'єкт порожній.",
+    "startEditing": "Почати редагування"
+  },
+  "canvas": {
+    "contextMenu": {
+      "createObject": "Створити об'єкт Петрі",
+      "createObjectTitle": "Новий об'єкт Петрі",
+      "createObjectDefaultName": "Об'єкт",
+      "createObjectPlaceholder": "напр. Генератор",
+      "createObjectSubmit": "Створити",
+      "editObject": "Редагувати на окремому полотні",
+      "editObjectFailed": "Не вдалося відкрити цей об'єкт Петрі для редагування.",
+      "duplicateObject": "Дублювати",
+      "saveToLibrary": "Зберегти у «Мої об'єкти»",
+      "saveToLibraryEmpty": "Цей об'єкт Петрі порожній — нічого зберігати.",
+      "saveToLibraryFailed": "Не вдалося зберегти цей об'єкт Петрі у «Мої об'єкти».",
+      "saveToLibraryDone": "«{{name}}» збережено у «Мої об'єкти».",
+      "ungroup": "Розгрупувати на звичайні елементи",
+      "deleteObjectWithContents": "Видалити об'єкт разом із вмістом",
+      "removeFromObject": "Вилучити з об'єкта",
+      "deleteElement": "Видалити"
+    }
+  },
+  "canvasTabs": {
+    "save": "Зберегти на полотно",
+    "saved": "Об'єкт Петрі оновлено на полотні.",
+    "saveFailed": "Не вдалося перенести зміни — цього об'єкта Петрі вже немає на полотні.",
+    "close": "Закрити",
+    "scrollLeft": "Прокрутити ліворуч",
+    "scrollRight": "Прокрутити праворуч",
+    "showAll": "Показати всі об'єкти",
+    "showOpenOnly": "Лише відкриті полотна",
+    "levelHint": "Рівень {{level}} — {{name}}",
+    "confirmClose": "«{{name}}» має незбережені зміни. Все одно закрити?",
+    "untitled": "Без назви"
+  },
+  "objectPalette": {
+    "onCanvas": "На цьому полотні",
+    "noCanvasObjectsLine1": "На цьому полотні немає об'єктів Петрі.",
+    "noCanvasObjectsLine2": "Виберіть елементи, натисніть ПКМ і оберіть «Створити об'єкт Петрі».",
+    "builtIn": "Вбудовані",
+    "myObjects": "Мої об'єкти",
+    "noCustomObjectsLine1": "Власних об'єктів ще немає.",
+    "noCustomObjectsLine2": "Виберіть елементи та скористайтесь Правка > Зберегти вибір як об'єкт Петрі.",
+    "rename": "Перейменувати",
+    "delete": "Видалити",
+    "confirmRename": "Перейменувати об'єкт:",
+    "confirmDelete": "Видалити \"{{name}}\"?"
+  },
+  "workbench": {
+    "loading": "Завантаження чату…",
+    "generating": "Генерація мережі Петрі…",
+    "dismissError": "Закрити",
+    "panel": {
+      "collapseChat": "Згорнути панель чату",
+      "expandChat": "Показати панель чату",
+      "collapseCanvas": "Згорнути полотно",
+      "expandCanvas": "Показати полотно",
+      "expandChatList": "Показати список чатів",
+      "chatLabel": "Чат",
+      "canvasLabel": "Полотно",
+      "chatListLabel": "Чати"
+    },
+    "empty": {
+      "title": "Мережа ще не створена",
+      "hint": "Опишіть систему в чаті, щоб згенерувати її."
+    },
+    "version": {
+      "prev": "Попередня версія",
+      "next": "Наступна версія",
+      "copyLink": "Скопіювати посилання на цю версію",
+      "copied": "Посилання скопійовано",
+      "copyFailed": "Не вдалося скопіювати посилання"
+    },
+    "errors": {
+      "snapshotNotFound": "Ця версія більше недоступна.",
+      "snapshotLoadFailed": "Не вдалося завантажити цю версію."
+    },
+    "fork": {
+      "save": "Зберегти в Мої мережі та редагувати",
+      "defaultName": "Мережа без назви",
+      "failed": "Не вдалося зберегти мережу",
+      "dialogTitle": "Зберегти в Мої мережі Петрі",
+      "namePlaceholder": "Назва мережі"
+    },
+    "canvas": {
+      "tokenCounts": "Кількість токенів",
+      "activeBuffers": "Активні буфери"
+    }
+  }
+}

@@ -1,0 +1,85 @@
+name: Release build
+
+# A human or script publishes a GitHub Release from a pushed tag first (see
+# bump-version.yml); this workflow does not create the Release itself, only
+# builds and pushes the images once one is published.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: petri-net-sim-local
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Determine image owner
+        id: owner
+        # GHCR (and Docker image refs generally) requires an all-lowercase
+        # name; github.repository_owner is not guaranteed to already be one.
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          # Repo root, not deploy/allinone/: the frontend build stage needs
+          # frontend/ and the final stage needs backend/, both siblings of
+          # deploy/.
+          context: .
+          file: ./deploy/allinone/Dockerfile
+          push: true
+          # The registry is the cache. Without this every release rebuilds
+          # npm ci and uv sync from scratch.
+          cache-from: type=gha,scope=petri-net-sim-local
+          cache-to: type=gha,mode=max,scope=petri-net-sim-local
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.owner }}/petri-net-sim-local:v${{ steps.version.outputs.version }}
+            ghcr.io/${{ steps.owner.outputs.owner }}/petri-net-sim-local:latest
+
+# One image, linux/amd64:
+#
+#   petri-net-sim-local   one container, single-user, no login. The simplest
+#                         way to run the app for yourself, and what
+#                         `docker compose -f docker-compose.allinone.yml pull`
+#                         fetches.
+#
+# The name carries the "-local" because the image does not merely happen to
+# suit local use: it defaults to AUTH_MODE=single_user, where everyone who
+# reaches the port is the same account. Publishing it as plain
+# "petri-net-sim" invited somebody to pull the obvious name, put it on a
+# public address, and discover that later.
+#
+# The multi-container stack builds from source and is NOT published. An
+# image in a public registry reads as a promise to keep it working, and the
+# artifact this project stands behind is the one somebody runs for
+# themselves. Operators who want the split stack, or Kubernetes, build
+# frontend/Dockerfile and backend/Dockerfile into their own registry: see
+# docs/deployment.md.
+#
+# amd64 only, deliberately. An arm64 build here means QEMU emulation for
+# `npm run build` and `uv sync`, which turns a few minutes into a long wait
+# for a platform nobody has asked for yet. Add `platforms: linux/amd64,
+# linux/arm64` above when someone deploys to an ARM host (AWS Graviton,
+# Oracle Ampere, a Raspberry Pi) and is willing to pay that build time.
+#
+# Nothing else is attached to the Release: the Docker image is this
+# project's distributable, served from GHCR, not a binary artifact on the
+# Release page.

@@ -1,0 +1,122 @@
+# OPTIONAL: the Java simulation engine, from PetriObjModelPaint.
+#
+# Apply this only if you want simulations computed by petri-server instead of
+# the Python engine that ships with the backend. Then point the API at it, in
+# configmap.yaml:
+#
+#   SIMULATION_ENGINE: "remote"
+#   SIMULATION_REMOTE_URL: "http://petri-server:8080"
+#
+# There is no image for this in our registry, on purpose: it is another
+# project's artifact and our release pipeline does not build other people's
+# code. Build it yourself from a PetriObjModelPaint checkout and push it to
+# your own registry:
+#
+#   git clone https://github.com/StetsenkoInna/PetriObjModelPaint
+#   cd PetriObjModelPaint
+#   docker build -f petri-server/Dockerfile -t your-registry/petri-server:2.2.2 .
+#   docker push your-registry/petri-server:2.2.2
+#
+# The build context is the repository ROOT, not petri-server/: it is a Maven
+# reactor build and needs every module's pom.xml on disk.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: petri-server
+  namespace: petri-net-sim
+  labels:
+    app.kubernetes.io/name: petri-net-sim
+    app.kubernetes.io/component: simulation-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: petri-net-sim
+      app.kubernetes.io/component: simulation-engine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: petri-net-sim
+        app.kubernetes.io/component: simulation-engine
+    spec:
+      containers:
+        - name: petri-server
+          image: your-registry/petri-server:2.2.2
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            # A JVM plus a Spring context: slower to come up than the probes
+            # above should have to tolerate.
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              # The image sets -XX:MaxRAMPercentage=75, so the JVM heap sizes
+              # itself against this limit rather than the node's memory.
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: petri-server
+  namespace: petri-net-sim
+  labels:
+    app.kubernetes.io/name: petri-net-sim
+    app.kubernetes.io/component: simulation-engine
+spec:
+  # ClusterIP, and no Ingress anywhere for it. petri-server has no
+  # authentication of its own: anything that can reach it can run a
+  # simulation on it. The API pods are the only intended caller.
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: petri-net-sim
+    app.kubernetes.io/component: simulation-engine
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Only the API may talk to it. Drop this if the cluster has no NetworkPolicy
+# controller, but then know that in-cluster reachability is the only thing
+# standing between petri-server and any other pod.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: petri-server-from-api-only
+  namespace: petri-net-sim
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: petri-net-sim
+      app.kubernetes.io/component: simulation-engine
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: petri-net-sim
+              app.kubernetes.io/component: api
+      ports:
+        - protocol: TCP
+          port: 8080

@@ -1,0 +1,115 @@
+# The backend: FastAPI, the LangGraph agent, the MCP server, the simulation
+# engine. One process per pod.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: petri-net-sim-api
+  namespace: petri-net-sim
+  labels:
+    app.kubernetes.io/name: petri-net-sim
+    app.kubernetes.io/component: api
+spec:
+  # One replica, deliberately. The web path is stateless (chats, nets and
+  # files live in Postgres, and a net is rebuilt from it per request), so
+  # this scales -- but MCP sessions live in this process's memory, and the
+  # rate limiter counts per process. Raise it once /mcp is routed to a single
+  # pod or its session store is shared. See README.md.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: petri-net-sim
+      app.kubernetes.io/component: api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: petri-net-sim
+        app.kubernetes.io/component: api
+    spec:
+      securityContext:
+        runAsNonRoot: false
+      containers:
+        - name: api
+          # Pin a release rather than tracking latest: a Deployment has no
+          # way to notice that a mutable tag moved.
+          # Not published by this project: only the all-in-one image is.
+          # Build backend/Dockerfile into your own registry and
+          # name it here, pinned to a tag rather than latest. See README.md.
+          image: your-registry/petri-net-sim-api:v1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: petri-net-sim
+            - secretRef:
+                name: petri-net-sim
+          env:
+            # Empty on purpose. The entrypoint reads this path for persisted
+            # secrets; here they come from the Secret above, and the
+            # entrypoint refuses to generate any in a deployed environment.
+            - name: SECRETS_FILE
+              value: ""
+          # Migrations run in the entrypoint before uvicorn binds, so the
+          # startup probe is what covers a slow first boot. Until it passes,
+          # the other two probes do not run at all.
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            # Checks the database. A blip takes the pod out of the Service
+            # instead of restarting it.
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            # Process-level only, so a sick dependency never restarts a
+            # healthy container.
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              # No CPU limit: an agent turn and a simulation are both bursty,
+              # and throttling them buys nothing here. Memory is capped
+              # because a runaway model should die alone.
+              memory: 2Gi
+---
+# Named "backend", not "petri-net-sim-api", and that is load-bearing: the web
+# image's nginx.conf proxies /api, /mcp and the docs to http://backend:8000,
+# the service name docker-compose gives it. Renaming the Service here would
+# mean a second nginx.conf that exists only for Kubernetes, and two copies of
+# the same routing to keep in step. The name is namespaced, so it collides
+# with nothing outside petri-net-sim.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: petri-net-sim
+  labels:
+    app.kubernetes.io/name: petri-net-sim
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    app.kubernetes.io/name: petri-net-sim
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
