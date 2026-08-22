@@ -1,0 +1,51 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the stack is affected?
+      options:
+        - Editor (canvas, frontend)
+        - Simulator
+        - Generator (agent)
+        - Backend API
+        - MCP server
+        - Deployment / Docker
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: >
+        Steps to reproduce the behavior. Attach a minimal PNML file or a
+        screenshot if relevant.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: how-run
+    attributes:
+      label: How are you running it?
+      placeholder: "docker run ...-local:latest / docker compose ... / make dev"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      render: shell
