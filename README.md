@@ -135,9 +135,15 @@ This is the result of my 2026 bachelor's thesis at **Igor Sikorsky Kyiv
 Polytechnic Institute**, Faculty of Informatics and Computer Engineering,
 program Information Systems Software Engineering.
 
-Supervisor: **Inna Stetsenko** ([@StetsenkoInna](https://github.com/StetsenkoInna))
+Supervisor: professor **Inna Stetsenko** ([@StetsenkoInna](https://github.com/StetsenkoInna))
 
 Author: Serhii Rybak ([@sergiorbk](https://github.com/sergiorbk))
+
+[PetriObjModelPaint](https://github.com/StetsenkoInna/PetriObjModelPaint) is
+its desktop companion, a cross-platform editor and simulator for classical and
+Petri-object nets, founded by professor **Inna Stetsenko**
+([@StetsenkoInna](https://github.com/StetsenkoInna)) and built together with
+her. The two open each other's files.
 
 ## License
 
