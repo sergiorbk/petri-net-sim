@@ -40,6 +40,12 @@ docker run -d --name petri-net-sim -p 6204:8000 \
   ghcr.io/sergiorbk/petri-net-sim-local:latest
 ```
 
+Or as one line:
+
+```bash
+docker run -d --name petri-net-sim -p 6204:8000 -e APP_PUBLIC_URL=http://localhost:6204 -v petri-net-sim-data:/data ghcr.io/sergiorbk/petri-net-sim-local:latest
+```
+
 Or, from a checkout of this repository:
 
 ```bash
