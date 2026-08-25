@@ -66,6 +66,7 @@ import {
   resolveObjectBand,
 } from "@/lib/petri-object-model";
 import { isComposedNet } from "@/lib/petri-composed";
+import { isEraserSweep } from "@/lib/eraser-geometry";
 import { saveCanvasObjectToLibrary } from "@/lib/petri-object-library";
 import { useCanvasTabsStore } from "@/stores/canvas-tabs-store";
 import { NameDialog } from "@/components/common/NameDialog";
@@ -1286,7 +1287,7 @@ function computeImportDrop(
 
 /** Tools that drag out a shape on the canvas instead of panning it. */
 function isRubberBandTool(tool: EditorTool): boolean {
-  return tool === "select-box" || tool === "select-lasso" || tool === "add-object";
+  return tool === "select-box" || tool === "select-lasso" || tool === "add-object" || tool === "delete";
 }
 
 /**
@@ -1997,6 +1998,39 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         return;
       }
 
+      // Eraser tool: a press barely moved is a click (erase the nearest
+      // reachable element), one that travelled far enough is a sweep (erase
+      // everything the band catches). Both the threshold and the reach live
+      // in lib/eraser-geometry so they're testable without a pointer; this
+      // just converts screen pixels to flow coordinates for them.
+      if (selectionStartRef.current && tool === "delete" && containerRef.current && rfInstance.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const toFlow = (p: { x: number; y: number }) =>
+          rfInstance.current!.screenToFlowPosition({ x: p.x + rect.left, y: p.y + rect.top });
+        const start = selectionStartRef.current;
+        const end = selectionPathRef.current[selectionPathRef.current.length - 1] ?? start;
+        const zoom = rfInstance.current.getViewport().zoom;
+        const startFlow = toFlow(start);
+        const endFlow = toFlow(end);
+
+        if (isEraserSweep(startFlow, endFlow, zoom)) {
+          useEditorStore.getState().eraseInBand({
+            minX: Math.min(startFlow.x, endFlow.x),
+            minY: Math.min(startFlow.y, endFlow.y),
+            maxX: Math.max(startFlow.x, endFlow.x),
+            maxY: Math.max(startFlow.y, endFlow.y),
+          });
+        } else {
+          useEditorStore.getState().eraseAt(endFlow, zoom);
+        }
+
+        suppressNextPaneClickRef.current = true;
+        selectionStartRef.current = null;
+        selectionPathRef.current = [];
+        setSelectionPreview(null);
+        return;
+      }
+
       // Handle selection box/lasso completion
       if (selectionStartRef.current && (tool === "select-box" || tool === "select-lasso") && selectionPathRef.current.length > 1) {
         const selected: Array<{ id: string; kind: "place" | "transition" | "object" }> = [];
@@ -2264,17 +2298,11 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         }
       }
       if (nodeType === "objectFrame") {
-        const frame = getObjects(currentNet).find((o) => o.id === nodeId);
-        // A frame with no owner of its own is managed as a unit from here
-        // (moved, deleted, resized); a nested one is only visible because
-        // its actual owner is expanded, and editing it — deleting it,
-        // adding a new member inside it — is confined to its own canvas.
-        const local = frame?.objectId === undefined;
-        if (!isSimulating && tool === "delete") {
-          if (!local) return;
-          deleteElement({ id: nodeId, kind: "object" });
-          return;
-        }
+        // The eraser tool doesn't reach here at all: its own raw
+        // mousedown/mouseup handling (see onMouseUp) resolves clicks and
+        // sweeps through lib/eraser-geometry and suppresses this click, so
+        // its fixed-screen-pixel reach isn't limited to React Flow's own
+        // (zoom-shrinking) hit test.
         // The Arc tool clicking exactly on a collapsed frame's border port
         // reaches through to the hidden member that port stands for — the
         // frame itself is never a valid arc endpoint, only what's behind it.
@@ -2293,14 +2321,7 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       }
       const kind: "place" | "transition" = nodeType === "place" ? "place" : "transition";
       if (!isSimulating) {
-        if (tool === "delete") {
-          // A member of some object is visible here only because that
-          // object is expanded — removing it is confined to the object's
-          // own canvas, same as any other edit to its contents.
-          if (ownerOf(currentNet, nodeId) !== undefined) return;
-          deleteElement({ id: nodeId, kind });
-          return;
-        }
+        // The eraser tool never reaches onNodeClick; see the comment above.
         if (tool === "add-arc") {
           handleNodeClickForArcTool(nodeId);
           return;
@@ -2308,7 +2329,7 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       }
       setSelection([{ id: nodeId, kind }]);
     },
-    [tool, setSelection, handleNodeClickForArcTool, deleteElement, isSimulating],
+    [tool, setSelection, handleNodeClickForArcTool, isSimulating],
   );
 
   const onEdgeClick = useCallback(
@@ -2316,23 +2337,14 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       const currentNet = useEditorStore.getState().net;
       const isLink = getLinks(currentNet).some((l) => l.id === edge.id);
       const kind: "arc" | "link" = isLink ? "link" : "arc";
-      if (!isSimulating && tool === "delete") {
-        // A link crosses object boundaries by definition, so deleting one is
-        // never "editing a foreign object's internals" — it's removing a
-        // declared connection, same spirit as the port-connect feature. A
-        // plain arc's two ends always share one owner; if that owner is
-        // defined, the arc is wholly inside some object and only that
-        // object's own canvas may remove it.
-        if (kind === "arc") {
-          const arc = currentNet.arcs.find((a) => a.id === edge.id);
-          if (arc && ownerOf(currentNet, arc.source_id) !== undefined) return;
-        }
-        deleteElement({ id: edge.id, kind });
-        return;
-      }
+      // The eraser tool never reaches onEdgeClick either: its own raw
+      // mousedown/mouseup handling resolves it (see onMouseUp), so a thin
+      // arc gets the fixed-screen-pixel reach instead of React Flow's own
+      // interactionWidth, which shrinks in step with the arc's stroke as
+      // the view zooms out.
       setSelection([{ id: edge.id, kind }]);
     },
-    [tool, deleteElement, setSelection, isSimulating],
+    [setSelection],
   );
 
   const onSelectionChange = useCallback(

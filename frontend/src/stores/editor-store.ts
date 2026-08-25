@@ -34,6 +34,7 @@ import {
 } from "@/lib/petri-object-model";
 import { nextId, nextLabel } from "@/lib/petri-ids";
 import { randomNetName } from "@/lib/random-net-name";
+import { eraserPick, eraserReachUnits, resolveEraserBand, type EraserHit } from "@/lib/eraser-geometry";
 
 export type EditorTool =
   | "select"
@@ -268,6 +269,22 @@ interface EditorState {
 
   deleteSelection: () => void;
   deleteElement: (ref: ElementRef) => void;
+
+  /**
+   * Eraser click: erases the nearest element within `zoom`'s fixed-screen-
+   * pixel reach of `point` (flow coordinates), skipping anything outside the
+   * active canvas's edit scope. A Petri-object goes whole, same as any other
+   * eraser hit.
+   */
+  eraseAt: (point: { x: number; y: number }, zoom: number) => void;
+  /**
+   * Eraser sweep: erases everything a band (flow coordinates) catches, in
+   * one undo step. Delegates to deleteSelection so the cascade (an object
+   * takes its members with it) and the edit-scope rule are the one
+   * implementation both the click and the sweep eraser share with the
+   * Delete key.
+   */
+  eraseInBand: (band: { minX: number; minY: number; maxX: number; maxY: number }) => void;
 }
 
 const DEFAULT_TRANSITION: Omit<PetriTransition, "id" | "name" | "graphics"> = {
@@ -1522,6 +1539,43 @@ export const useEditorStore = create<EditorState>()(
       dirty: true,
       selection: [],
     });
+  },
+
+  eraseAt: (point, zoom) => {
+    const { net } = get();
+    // A link crosses object boundaries by definition (never "someone else's
+    // internals"); a plain arc is local only when both its ends are; a
+    // place/transition/object is local only when it has no owner of its
+    // own. Mirrors deleteSelection's own scope filter exactly, since a
+    // single-hit erase and a selection erase are the same edit either way.
+    const isEraseable = (hit: EraserHit): boolean => {
+      if (hit.kind === "link") return true;
+      if (hit.kind === "arc") {
+        const arc = net.arcs.find((a) => a.id === hit.id);
+        return !arc || ownerOf(net, arc.source_id) === undefined;
+      }
+      return isLocalToNet(net, hit.id);
+    };
+    const hit = eraserPick(net, point, eraserReachUnits(zoom), isEraseable);
+    if (!hit) return;
+    // deleteElement already routes "object" through deleteObject's
+    // keepContents:false cascade, so no second cascade is needed here.
+    get().deleteElement({ id: hit.id, kind: hit.kind });
+  },
+
+  eraseInBand: (band) => {
+    const { net } = get();
+    const caught = resolveEraserBand(net, band);
+    const refs: ElementRef[] = [
+      ...caught.placeIds.map((id) => ({ id, kind: "place" as const })),
+      ...caught.transitionIds.map((id) => ({ id, kind: "transition" as const })),
+      ...caught.objectIds.map((id) => ({ id, kind: "object" as const })),
+      ...caught.arcIds.map((id) => ({ id, kind: "arc" as const })),
+      ...caught.linkIds.map((id) => ({ id, kind: "link" as const })),
+    ];
+    if (refs.length === 0) return;
+    get().setSelection(refs);
+    get().deleteSelection();
   },
     }),
     {
