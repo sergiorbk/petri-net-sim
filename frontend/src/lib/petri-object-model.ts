@@ -581,6 +581,24 @@ export type FusionRejectionReason =
   | "sameObject";
 
 /**
+ * Wording for each FusionRejectionReason, phrased to slot after a colon in a
+ * sentence ("Dropped the link X = Y: <reason>."), the shape a document- or
+ * export-time report needs. The editor's own toast (canvas.fusion.rejection.*
+ * in the locale files) says the identical thing as a full sentence, so a user
+ * sees the same explanation whether the rejection happened at their cursor,
+ * on opening a file, or on saving one.
+ */
+export const FUSION_REJECTION_REASON_TEXT: Record<FusionRejectionReason, string> = {
+  selfLink: "a place cannot be linked to itself",
+  alreadyLinked:
+    "these two places are already linked; a link in the opposite direction is not allowed either",
+  copyAlreadyLinked:
+    "that place already copies another one; a place can repeat a single source, otherwise there is no saying which marking it holds",
+  wouldCreateLoop: "that would make a loop of links, where each place copies the next",
+  sameObject: "both places belong to the same Petri-object, so linking them would have it repeat itself",
+};
+
+/**
  * The single authority for whether a placeFusion link from `copyId` to
  * `masterId` is allowed, in the order desktop PetriObjModelPaint's
  * GraphCanvasModel.rejectionFor checks them. Both the editor gesture and a

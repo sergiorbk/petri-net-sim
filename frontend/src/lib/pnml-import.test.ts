@@ -936,6 +936,129 @@ describe("declared links whose endpoints are not the kind the type requires", ()
   });
 });
 
+// ---------------------------------------------------------------------------
+// A document is held to the same five rules the editor gesture is
+// (rejectionForFusion, petri-object-model.ts). A hand-written or foreign-tool
+// file has no gesture stopping it from declaring a fusion the canvas itself
+// could never draw; these fixtures use the legacy, position/id-addressed
+// <petriObjectLinks> declaration (declaredLinks), which is exactly the shape
+// such a file states a link in: unlike a <referencePlace>'s own ref chain,
+// it carries no built-in cycle or duplicate-master detection at all.
+// ---------------------------------------------------------------------------
+
+describe("documents are held to the same fusion rules as the editor", () => {
+  /** Three objects, each with one place, and a declared petriObjectLinks block. */
+  function threeObjectDoc(links: string): string {
+    const object = (index: number, name: string, placeId: string) => `
+    <page id="${placeId}_page">
+      <toolspecific tool="PetriObjModel" version="2.0">
+        <petriObject index="${index}" name="${name}" priority="0" x="${index * 200}" y="0" width="100" height="100"/>
+      </toolspecific>
+      <place id="${placeId}"><name><text>${placeId.toUpperCase()}</text></name></place>
+    </page>`;
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="net1" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Legacy fusions</text></name>
+    ${object(0, "A", "p1")}${object(1, "B", "p2")}${object(2, "C", "p3")}
+    <toolspecific tool="PetriObjModel" version="2.0">
+      <petriObjectLinks>
+        ${links}
+      </petriObjectLinks>
+    </toolspecific>
+  </net>
+</pnml>`;
+  }
+
+  const fusionLink = (sourceId: string, targetId: string) =>
+    `<link type="placeFusion" sourceElementId="${sourceId}" targetElementId="${targetId}"/>`;
+
+  it("drops the link that closes a cycle, keeping every link stated before it", () => {
+    // p1 copies p2, p2 copies p3: legal so far. p3 copying p1 back closes the
+    // loop, and is the third and last of the three to be declared.
+    const xml = threeObjectDoc(
+      [fusionLink("p1", "p2"), fusionLink("p2", "p3"), fusionLink("p3", "p1")].join("\n        "),
+    );
+    const { data: net, warnings } = parsePnml(xml);
+
+    expect(net.links?.map((l) => `${l.sourceId}->${l.targetId}`)).toEqual(["p1->p2", "p2->p3"]);
+
+    const fusionWarnings = warnings.filter((w) => w.code === "rejected-fusion");
+    expect(fusionWarnings).toHaveLength(1);
+    // Both endpoints, and the reason, in the message.
+    expect(fusionWarnings[0].message).toContain('"P1" (id "p1")');
+    expect(fusionWarnings[0].message).toContain('"P3" (id "p3")');
+    expect(fusionWarnings[0].message).toContain("that would make a loop of links, where each place copies the next");
+  });
+
+  it("keeps the first master a copy claims and drops a second, contradictory one", () => {
+    // p1 copying p2 is declared first; p1 copying p3 as well is declared
+    // second and contradicts it: a place can repeat only a single source.
+    const xml = threeObjectDoc([fusionLink("p1", "p2"), fusionLink("p1", "p3")].join("\n        "));
+    const { data: net, warnings } = parsePnml(xml);
+
+    expect(net.links?.map((l) => `${l.sourceId}->${l.targetId}`)).toEqual(["p1->p2"]);
+
+    const fusionWarnings = warnings.filter((w) => w.code === "rejected-fusion");
+    expect(fusionWarnings).toHaveLength(1);
+    expect(fusionWarnings[0].message).toContain('"P1" (id "p1")');
+    expect(fusionWarnings[0].message).toContain('"P3" (id "p3")');
+    expect(fusionWarnings[0].message).toContain(
+      "that place already copies another one; a place can repeat a single source",
+    );
+  });
+
+  it("imports a well-formed fan of three copies with all links kept and no warnings", () => {
+    // One master on the free-elements page, repeated by a copy in each of
+    // three separate objects: legal in every direction, so nothing is dropped
+    // and nothing warns. This is the case that must not regress.
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="net1" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Fan</text></name>
+    <page id="free">
+      <place id="m"><name><text>M</text></name><initialMarking><text>3</text></initialMarking></place>
+    </page>
+    <page id="objectA">
+      <toolspecific tool="PetriObjModel" version="2.1">
+        <petriObject index="0" name="A" priority="0" x="0" y="0" width="100" height="100"/>
+      </toolspecific>
+      <referencePlace id="c1" ref="m">
+        <name><text>C1</text></name>
+        <toolspecific tool="PetriObjModel" version="2.1"><referenceRole>fusion</referenceRole></toolspecific>
+      </referencePlace>
+    </page>
+    <page id="objectB">
+      <toolspecific tool="PetriObjModel" version="2.1">
+        <petriObject index="1" name="B" priority="0" x="200" y="0" width="100" height="100"/>
+      </toolspecific>
+      <referencePlace id="c2" ref="m">
+        <name><text>C2</text></name>
+        <toolspecific tool="PetriObjModel" version="2.1"><referenceRole>fusion</referenceRole></toolspecific>
+      </referencePlace>
+    </page>
+    <page id="objectC">
+      <toolspecific tool="PetriObjModel" version="2.1">
+        <petriObject index="2" name="C" priority="0" x="400" y="0" width="100" height="100"/>
+      </toolspecific>
+      <referencePlace id="c3" ref="m">
+        <name><text>C3</text></name>
+        <toolspecific tool="PetriObjModel" version="2.1"><referenceRole>fusion</referenceRole></toolspecific>
+      </referencePlace>
+    </page>
+  </net>
+</pnml>`;
+    const { data: net, warnings } = parsePnml(xml);
+
+    expect(net.links?.map((l) => `${l.sourceId}->${l.targetId}`).sort()).toEqual([
+      "c1->m",
+      "c2->m",
+      "c3->m",
+    ]);
+    expect(warnings).toHaveLength(0);
+  });
+});
+
 describe("where a document says one object is inside another", () => {
   const pageMarker = (index: number, name: string, parent?: number) =>
     `<toolspecific tool="PetriObjModel" version="2.2.2">
