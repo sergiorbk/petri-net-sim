@@ -17,6 +17,19 @@ from .model_object import ModelObject
 #: a model ever reaches an exporter.
 _NCNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.\-]*$")
 
+#: A place-fusion "slot": whatever identifies one place well enough to
+#: compare two of them, where element 0 names the OBJECT it belongs to
+#: (compared for rule 5, same-object) and the whole tuple names the PLACE
+#: itself (compared for rules 1-4). `place_fusion_rejection` only ever
+#: hashes/equality-compares a whole slot and reads element 0, so the two
+#: callers can use whatever shape they already have on hand rather than
+#: resolving one just for this check: `ComposedModel` itself and
+#: `PetriNetSession.add_link` use (object index, element index), matching
+#: `ComposedLink`'s own addressing; `pnml_importer.py` runs this check
+#: before any of that exists yet, while it still only has (page index,
+#: element id) for a reference node and the place it resolves to.
+PlaceFusionSlot = Tuple[object, object]
+
 
 class ComposedModel(BaseModel):
     """
@@ -214,7 +227,110 @@ class ComposedModel(BaseModel):
         errors: List[str] = []
         errors.extend(self._validate_link_endpoint(index, link, "source"))
         errors.extend(self._validate_link_endpoint(index, link, "target"))
+        if link.type == LinkType.PLACE_FUSION:
+            prior = [
+                ((earlier.source_object, earlier.source_element),
+                 (earlier.target_object, earlier.target_element))
+                for earlier in self.links[:index]
+                if earlier.type == LinkType.PLACE_FUSION
+            ]
+            reason = self.place_fusion_rejection(
+                prior,
+                (link.source_object, link.source_element),
+                (link.target_object, link.target_element),
+            )
+            if reason is not None:
+                errors.append(f"Link {index}: {reason}")
         return errors
+
+    @staticmethod
+    def place_fusion_rejection(
+        existing: List[Tuple[PlaceFusionSlot, PlaceFusionSlot]],
+        source: PlaceFusionSlot,
+        target: PlaceFusionSlot,
+    ) -> Optional[str]:
+        """Whether a candidate placeFusion link (source slot -> target slot,
+        see `PlaceFusionSlot`) is legal alongside `existing` fusion links,
+        and why not when it is not.
+
+        The five rules, ported from the desktop editor's
+        GraphCanvasModel.rejectionFor, checked in the order that function
+        checks them so the first thing wrong is the thing reported:
+
+        1. A place cannot be linked to itself.
+        2. No second link between the same pair of places, in either
+           direction: a fusion is an identity, one link states it.
+        3. A place may be the SOURCE (the copy) of at most one fusion link.
+           A copy that named two masters would have no answer to what its
+           own marking is; this is the rule that confines the fan to one
+           direction, source-many/target-one rather than the reverse.
+        4. No cycle: PNML requires a reference place never resolve through
+           a chain back to itself, and the exporter's `_elect_shared_places`
+           (`services/petri/exporter/composed_document.py`) assumes exactly
+           that (each fusion component is a tree, not a graph with a loop
+           in it) to know the master is always the root it finds.
+        5. The two places must not belong to the same object: a place
+           cannot repeat itself.
+
+        This is the one place these rules are written down. `validate()`
+        below calls it with every fusion link stated earlier in document
+        order as `existing`, so a document is refused with the same
+        sentence a caller creating the same pair of links one at a time
+        would get (`operations.py::op_link_objects`, `session.py::
+        add_link`). `pnml_importer.py`'s `_filter_place_fusion_links` calls
+        it too, the same way `validate()` does (one link at a time, in
+        document order, against every fusion link already accepted from
+        earlier in the document), so an imported file that violates a rule
+        drops the later-stated link and keeps the document open, instead of
+        importing cleanly and only failing once validate()/export runs.
+        One function, three arrival paths, never a second chance to
+        disagree about what is allowed.
+        """
+        if source == target:
+            return "A place cannot be linked to itself."
+
+        for other_source, other_target in existing:
+            if {other_source, other_target} == {source, target}:
+                return (
+                    "These two places are already linked; a link in the "
+                    "opposite direction is not allowed either."
+                )
+
+        if any(other_source == source for other_source, _ in existing):
+            return (
+                "That place already copies another one. A place can repeat "
+                "a single source, otherwise there is no saying which "
+                "marking it holds."
+            )
+
+        # Walk from the candidate's target up through each place's own
+        # source link (does the master this link would create itself copy
+        # something, and does THAT master copy something in turn) and see
+        # whether the walk arrives back at the candidate's source. Bounded
+        # by len(existing) + 1 hops: rule 3 keeps a well-formed `existing`
+        # a forest (each slot the source of at most one link), so this walk
+        # is a simple path and can cross at most every existing link once;
+        # the bound only matters for an `existing` a caller passed in that
+        # already breaks rule 3, so a corrupt model can't hang it.
+        copies_to = dict(existing)
+        current: Optional[Tuple[int, int]] = target
+        for _ in range(len(existing) + 1):
+            if current == source:
+                return (
+                    "That would make a loop of links, where each place "
+                    "copies the next."
+                )
+            current = copies_to.get(current)
+            if current is None:
+                break
+
+        if source[0] == target[0]:
+            return (
+                "Both places belong to the same Petri-object, so linking "
+                "them would have it repeat itself."
+            )
+
+        return None
 
     def _validate_link_endpoint(self, index: int, link: ComposedLink, side: str) -> List[str]:
         obj_index = link.source_object if side == "source" else link.target_object

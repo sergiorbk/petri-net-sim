@@ -85,6 +85,59 @@ class TestPlaceFusion:
         assert (marking["OutA"], marking["OutB"]) in [(1, 0), (0, 1)]
         assert marking["Fused"] == 0  # the survivor's id is what's reported
 
+    def test_a_fan_of_three_copies_shares_one_global_slot(self):
+        """desktop #61: one master, ANY number of copies pointing at it --
+        every copy's link has the SAME target (object 0), which is legal
+        only because each copy is the SOURCE of just one link (rule 3);
+        the master itself is never a source here, so nothing about the fan
+        makes it a chain."""
+        model = ComposedModel()
+        model.add_object(_net_with_output("Master", "Fused", "TM", "OutM", tokens=1))
+        model.add_object(_net_with_output("Copy1", "FusedC1", "TC1", "OutC1", tokens=0))
+        model.add_object(_net_with_output("Copy2", "FusedC2", "TC2", "OutC2", tokens=0))
+        model.add_object(_net_with_output("Copy3", "FusedC3", "TC3", "OutC3", tokens=0))
+        for copy_index in (1, 2, 3):
+            model.add_link(
+                LinkType.PLACE_FUSION,
+                source_object=copy_index, source_element=0,
+                target_object=0, target_element=0,
+            )
+        assert model.validate() == []
+
+        places, transitions = build_composed_sim_net(model)
+
+        # 4 objects x 2 places each, minus the 3 copies fused away.
+        assert len(places) == 5
+        consuming = [t for t in transitions if t.name in ("TM", "TC1", "TC2", "TC3")]
+        assert len(consuming) == 4
+        in_place_slots = {t.in_places[0] for t in consuming}
+        assert in_place_slots == {0}, "every copy's transition reads the master's own slot"
+
+    def test_a_firing_that_drains_the_fan_s_shared_slot_is_visible_to_every_copy(self):
+        model = ComposedModel()
+        model.add_object(_net_with_output("Master", "Fused", "TM", "OutM", tokens=1))
+        model.add_object(_net_with_output("Copy1", "FusedC1", "TC1", "OutC1", tokens=0))
+        model.add_object(_net_with_output("Copy2", "FusedC2", "TC2", "OutC2", tokens=0))
+        model.add_object(_net_with_output("Copy3", "FusedC3", "TC3", "OutC3", tokens=0))
+        for copy_index in (1, 2, 3):
+            model.add_link(
+                LinkType.PLACE_FUSION,
+                source_object=copy_index, source_element=0,
+                target_object=0, target_element=0,
+            )
+
+        places, transitions = build_composed_sim_net(model)
+        result = PetriSimulator.from_sim_state(places, transitions).run(simulation_time=10.0)
+
+        marking = {p.name: p.final_marking for p in result.places}
+        # Exactly one of the four competitors wins the fan's single token,
+        # never zero and never more than one -- the fan is one pool, not
+        # four independent ones.
+        winners = [marking[out] for out in ("OutM", "OutC1", "OutC2", "OutC3")]
+        assert winners.count(1) == 1
+        assert winners.count(0) == 3
+        assert marking["Fused"] == 0  # the master's own id is the one reported
+
 
 class TestTransitionToPlace:
     def test_wires_a_cross_object_output_arc(self):
