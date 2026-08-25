@@ -67,7 +67,7 @@ export function ExportDialog({ onClose, net: netProp, version, id }: ExportDialo
     const net = netProp ?? editor.net;
     let xml: string;
     try {
-      xml = exportPnml(net);
+      xml = exportPnml(net, (message) => toast(message, "warning"));
     } catch (err) {
       // A composed canvas can be drawn in ways PNML has no shape for, an
       // object linked to itself above all. Saying so beats a button that

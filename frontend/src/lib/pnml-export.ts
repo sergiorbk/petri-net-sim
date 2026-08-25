@@ -62,13 +62,21 @@ function resolveExportNames(net: PetriNetData): {
  * projection, but writing it flat would drop the frame from the reopened
  * canvas. A file has to come back as the same drawing, so the question here
  * is "does the canvas carry structure", not "which engine runs it".
+ *
+ * `onWarning`, when given, hears about anything the canvas drew that this
+ * document has no shape for and had to leave out: today, a placeFusion link
+ * whose two ends resolve to one object, the free-elements page included
+ * (rejectionForFusion rule 5, petri-object-model.ts; the desktop's own
+ * canvas-to-model step skips the identical link). A user who drew it has a
+ * right to know the file says nothing about it.
  */
-export function exportPnml(net: PetriNetData): string {
+export function exportPnml(net: PetriNetData, onWarning?: (message: string) => void): string {
   if (!isComposedNet(net)) return exportFlatPnml(net);
   // A file is not a simulation request either: an object the engine would
   // have nothing to run — a frame that only holds other frames, a frame the
   // user emptied — is still written.
-  return exportComposedPnml(buildComposedRequest(net, { includeEmptyObjects: true })!);
+  const body = buildComposedRequest(net, { includeEmptyObjects: true, onWarning })!;
+  return exportComposedPnml(body, onWarning);
 }
 
 /**

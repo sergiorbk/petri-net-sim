@@ -2,6 +2,7 @@ import type { ComposedLinkSpec, ComposedObjectSpec, ComposedSimulateBody } from 
 import type { ArcType, PetriTransition } from "@/types/petri";
 import { version as appVersion } from "../../package.json";
 import { FRAME_MIN_H, FRAME_MIN_W, PLACE_H, PLACE_W, TRANS_H, TRANS_W } from "@/lib/petri-geometry";
+import { FUSION_REJECTION_REASON_TEXT } from "@/lib/petri-object-model";
 
 /**
  * Serialises a composed (Petri-object) model to ISO/IEC 15909-2 conformant
@@ -859,17 +860,35 @@ function linksBlockXml(body: ComposedSimulateBody, namespaced: boolean, remap: I
   return toolspecificBlocks(lines).join("\n");
 }
 
+/** Names a link endpoint for a warning message, by the place's visible name when there is one, by its id otherwise. */
+function describeLinkEndpoint(body: ComposedSimulateBody, objectIndex: number, elementIndex: number): string {
+  const place = body.objects[objectIndex]?.net_data.places[elementIndex];
+  if (!place) return `place ${objectIndex}.${elementIndex}`;
+  return place.name && place.name !== place.id ? `"${place.name}" (id "${place.id}")` : `id "${place.id}"`;
+}
+
 /**
  * Exports a composed model to ISO/IEC 15909-2 conformant, multi-page PNML
  * with standard `<referencePlace>`/`<referenceTransition>` structure (see
  * module docstring). `body` is exactly the request `buildComposedRequest`
  * sends to `/api/v1/simulate/composed`, this function does not re-derive
  * the object/link partition, only serialises it.
+ *
+ * `onWarning`, when given, is told about a placeFusion link dropped below
+ * because it connects an object to itself. That case reaches here in
+ * practice only from a hand-built body (buildComposedRequest already drops
+ * such a link itself, warning through its own `onWarning` option), but this
+ * function has to stay correct for a body assembled some other way too, so
+ * it applies the identical rule rather than assuming its caller already did.
  */
-export function exportComposedPnml(body: ComposedSimulateBody): string {
+export function exportComposedPnml(
+  body: ComposedSimulateBody,
+  onWarning?: (message: string) => void,
+): string {
   if (body.objects.length === 0) {
     throw new Error("Cannot export composed PNML: model has no objects.");
   }
+  const links: ComposedLinkSpec[] = [];
   body.links.forEach((link, index) => {
     if (link.type === "placeToTransition") {
       // PetriObjModelPaint retired this link type (ComposedModel.validate()
@@ -885,11 +904,28 @@ export function exportComposedPnml(body: ComposedSimulateBody): string {
       );
     }
     if (link.source_object === link.target_object) {
+      if (link.type === "placeFusion") {
+        // The desktop's own canvas-to-model step skips exactly this link: every
+        // free element folds into one implicit object, so a fusion whose two
+        // ends land in the same object (the free-elements page included) has
+        // no structural form there either (rejectionForFusion rule 5's
+        // free-to-free carve-out, petri-object-model.ts). Composed PNML has no
+        // shape for "an object refers to itself", so this document skips it
+        // too, rather than refusing to open at all.
+        onWarning?.(
+          `Dropped the link ${describeLinkEndpoint(body, link.target_object, link.target_element)} = ` +
+            `${describeLinkEndpoint(body, link.source_object, link.source_element)}: ` +
+            `${FUSION_REJECTION_REASON_TEXT.sameObject}.`,
+        );
+        return;
+      }
       throw new Error(
         `Cannot export composed PNML: link ${index} (${link.type}) connects object ${link.source_object} to itself, which composed PNML cannot express.`,
       );
     }
+    links.push(link);
   });
+  body = { ...body, links };
 
   const namespaced = computeNamespacing(body.objects);
   const preIds = composedPreIds(body.objects, namespaced);
