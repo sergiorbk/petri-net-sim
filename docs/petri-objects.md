@@ -7,10 +7,10 @@ Two kinds of link:
 
 | Link | What it does |
 |------|--------------|
-| **Place fusion** | One place is shared between two objects. Both see the same tokens |
+| **Place fusion** | One place is repeated by one or more others. Every one of them sees the same tokens |
 | **Transition to place** | A transition in one object feeds a place in another |
 
-![Three Petri-objects on one canvas: Generator, Machine and Counter, each a framed net, joined by dashed place-fusion links](assets/petri-objects.png)
+![Three Petri-objects on one canvas: Generator, Machine and Counter, each a framed net, joined by shared-place links](assets/petri-objects.png)
 
 The point is readability at scale. A large discrete-event model becomes
 several smaller nets that each stay understandable on their own, then get
@@ -19,6 +19,35 @@ composed, instead of one diagram nobody can follow.
 This is the composition technique from
 [PetriObjModelPaint](petriobjmodelpaint.md), and the reason this project can
 exchange models with it.
+
+## A shared place has a direction
+
+A shared place is a reference rather than a merge. One place is the source, the
+place being repeated, and it holds the marking; the others repeat it and show
+the same tokens because they are the same place. Drawing the link starts at the
+source, and the document says the same thing: each copy is written as a
+`<referencePlace>` pointing at the source, which stays an ordinary `<place>`.
+
+One source may be repeated by any number of copies, and a copy may itself be
+repeated further, so chains are allowed. Four arrangements are refused, each
+for its own reason:
+
+- a place linked to itself;
+- the same pair linked twice, or once each way, since one link already states
+  the identity and a second says nothing further;
+- a place that copies two sources, because then there is no saying which
+  marking it holds;
+- a chain of links closing into a loop, which the standard forbids for
+  reference places too.
+
+Two places of one object may not be linked, since the object would be repeating
+itself. Two places belonging to no object may be linked on the canvas, but that
+link has no structural form and is left out of both the exported document and
+the simulation.
+
+A document is held to the same rules. A file written by hand, by another tool,
+or by an older build can declare links no editor would have allowed; those are
+dropped on import and reported, and the rest of the document still opens.
 
 ## Building them
 

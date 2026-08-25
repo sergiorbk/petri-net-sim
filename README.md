@@ -107,11 +107,12 @@ And whichever tool built it, the model is not stuck here:
 | **Take it elsewhere** | ISO/IEC 15909-2 conformant PNML, readable by PetriObjModelPaint, TINA and CPN Tools |
 | **Drive it from code** | An [MCP server and an OpenAI-compatible API](docs/integrations.md), on keys you issue yourself |
 
-![A composed model: Generator, Machine and Counter as three framed nets, joined by dashed place-fusion links](docs/assets/petri-objects.png)
+![A composed model: Generator, Machine and Counter as three framed nets, joined by shared-place links](docs/assets/petri-objects.png)
 
-Each frame above is its own net with its own places and transitions. The
-dashed links are shared places: one object's Out **is** the next object's In,
-so tokens are not copied between them. [More on Petri-objects](docs/petri-objects.md).
+Each frame above is its own net with its own places and transitions. The links
+between them are shared places: one object's Out **is** the next object's In,
+so tokens are not copied between them. One place can be repeated by any number
+of others this way. [More on Petri-objects](docs/petri-objects.md).
 
 ## Documentation
 
