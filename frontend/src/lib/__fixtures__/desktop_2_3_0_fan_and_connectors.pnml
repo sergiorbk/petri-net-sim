@@ -1,0 +1,451 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+   <net id="Dispatcher-and-a-group-of-servers"
+        type="http://www.pnml.org/version-2009/grammar/ptnet">
+      <name>
+         <text>Dispatcher and a group of servers</text>
+      </name>
+      <page id="object0">
+         <name>
+            <text>Dispatcher</text>
+         </name>
+         <toolspecific tool="PetriObjModel" version="2.3.0">
+            <petriObject height="200"
+                         index="0"
+                         name="Dispatcher"
+                         priority="2"
+                         width="560"
+                         x="80"
+                         y="60"/>
+         </toolspecific>
+         <place id="d_queue">
+            <name>
+               <text>Queue</text>
+            </name>
+            <initialMarking>
+               <text>12</text>
+            </initialMarking>
+            <graphics>
+               <position x="160" y="170"/>
+            </graphics>
+         </place>
+         <place id="d_sent">
+            <name>
+               <text>Sent</text>
+            </name>
+            <graphics>
+               <position x="400" y="170"/>
+            </graphics>
+         </place>
+         <place id="d_ack">
+            <name>
+               <text>Ack</text>
+            </name>
+            <graphics>
+               <position x="540" y="170"/>
+            </graphics>
+         </place>
+         <transition id="d_dispatch">
+            <name>
+               <text>Dispatch</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <timeDelay>0.5</timeDelay>
+               <delayMeanValue>0.5</delayMeanValue>
+            </toolspecific>
+            <graphics>
+               <position x="280" y="170"/>
+            </graphics>
+         </transition>
+         <arc id="arc-1b87c2b0" source="d_queue" target="d_dispatch">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-25ce4d59" source="d_dispatch" target="d_sent">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+      </page>
+      <page id="object1">
+         <name>
+            <text>Server 1</text>
+         </name>
+         <toolspecific tool="PetriObjModel" version="2.3.0">
+            <petriObject height="220"
+                         index="1"
+                         name="Server 1"
+                         priority="0"
+                         width="400"
+                         x="80"
+                         y="360"/>
+         </toolspecific>
+         <referencePlace id="s1_task" ref="d_sent">
+            <name>
+               <text>Task</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <referenceRole>fusion</referenceRole>
+            </toolspecific>
+            <graphics>
+               <position x="150" y="470"/>
+            </graphics>
+         </referencePlace>
+         <place id="s1_busy">
+            <name>
+               <text>Busy</text>
+            </name>
+            <initialMarking>
+               <text>1</text>
+            </initialMarking>
+            <graphics>
+               <position x="150" y="560"/>
+            </graphics>
+         </place>
+         <referencePlace id="s1_ack" ref="d_ack">
+            <name>
+               <text>Ack</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <referenceRole>fusion</referenceRole>
+            </toolspecific>
+            <graphics>
+               <position x="390" y="470"/>
+            </graphics>
+         </referencePlace>
+         <transition id="s1_serve">
+            <name>
+               <text>Serve</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <timeDelay>3.0</timeDelay>
+               <delayMeanValue>3.0</delayMeanValue>
+            </toolspecific>
+            <graphics>
+               <position x="270" y="470"/>
+            </graphics>
+         </transition>
+         <arc id="arc-5280d23d" source="s1_task" target="s1_serve">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-0e7fbddf" source="s1_busy" target="s1_serve">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-212509f2" source="s1_serve" target="s1_ack">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-bf18a403" source="s1_serve" target="s1_busy">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+      </page>
+      <page id="object2">
+         <name>
+            <text>Server 2</text>
+         </name>
+         <toolspecific tool="PetriObjModel" version="2.3.0">
+            <petriObject height="220"
+                         index="2"
+                         name="Server 2"
+                         priority="0"
+                         width="400"
+                         x="520"
+                         y="360"/>
+         </toolspecific>
+         <referencePlace id="s2_task" ref="d_sent">
+            <name>
+               <text>Task</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <referenceRole>fusion</referenceRole>
+            </toolspecific>
+            <graphics>
+               <position x="590" y="470"/>
+            </graphics>
+         </referencePlace>
+         <place id="s2_busy">
+            <name>
+               <text>Busy</text>
+            </name>
+            <initialMarking>
+               <text>1</text>
+            </initialMarking>
+            <graphics>
+               <position x="590" y="560"/>
+            </graphics>
+         </place>
+         <referencePlace id="s2_ack" ref="d_ack">
+            <name>
+               <text>Ack</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <referenceRole>fusion</referenceRole>
+            </toolspecific>
+            <graphics>
+               <position x="830" y="470"/>
+            </graphics>
+         </referencePlace>
+         <transition id="s2_serve">
+            <name>
+               <text>Serve</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <timeDelay>3.0</timeDelay>
+               <delayMeanValue>3.0</delayMeanValue>
+            </toolspecific>
+            <graphics>
+               <position x="710" y="470"/>
+            </graphics>
+         </transition>
+         <arc id="arc-6210a121" source="s2_task" target="s2_serve">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-7b8a5124" source="s2_busy" target="s2_serve">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-4fe3bec9" source="s2_serve" target="s2_ack">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-48a25059" source="s2_serve" target="s2_busy">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+      </page>
+      <page id="object3">
+         <name>
+            <text>Server 3</text>
+         </name>
+         <toolspecific tool="PetriObjModel" version="2.3.0">
+            <petriObject height="220"
+                         index="3"
+                         name="Server 3"
+                         priority="0"
+                         width="400"
+                         x="960"
+                         y="360"/>
+         </toolspecific>
+         <referencePlace id="s3_task" ref="d_sent">
+            <name>
+               <text>Task</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <referenceRole>fusion</referenceRole>
+            </toolspecific>
+            <graphics>
+               <position x="1030" y="470"/>
+            </graphics>
+         </referencePlace>
+         <place id="s3_busy">
+            <name>
+               <text>Busy</text>
+            </name>
+            <initialMarking>
+               <text>1</text>
+            </initialMarking>
+            <graphics>
+               <position x="1030" y="560"/>
+            </graphics>
+         </place>
+         <referencePlace id="s3_ack" ref="d_ack">
+            <name>
+               <text>Ack</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <referenceRole>fusion</referenceRole>
+            </toolspecific>
+            <graphics>
+               <position x="1270" y="470"/>
+            </graphics>
+         </referencePlace>
+         <transition id="s3_serve">
+            <name>
+               <text>Serve</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <timeDelay>3.0</timeDelay>
+               <delayMeanValue>3.0</delayMeanValue>
+            </toolspecific>
+            <graphics>
+               <position x="1150" y="470"/>
+            </graphics>
+         </transition>
+         <arc id="arc-9bb8edf8" source="s3_task" target="s3_serve">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-ad573bb1" source="s3_busy" target="s3_serve">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-28d7a316" source="s3_serve" target="s3_ack">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-d7b1794b" source="s3_serve" target="s3_busy">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+      </page>
+      <page id="object4">
+         <name>
+            <text>Server 4</text>
+         </name>
+         <toolspecific tool="PetriObjModel" version="2.3.0">
+            <petriObject height="220"
+                         index="4"
+                         name="Server 4"
+                         priority="0"
+                         width="400"
+                         x="1400"
+                         y="360"/>
+         </toolspecific>
+         <referencePlace id="s4_task" ref="d_sent">
+            <name>
+               <text>Task</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <referenceRole>fusion</referenceRole>
+            </toolspecific>
+            <graphics>
+               <position x="1470" y="470"/>
+            </graphics>
+         </referencePlace>
+         <place id="s4_busy">
+            <name>
+               <text>Busy</text>
+            </name>
+            <initialMarking>
+               <text>1</text>
+            </initialMarking>
+            <graphics>
+               <position x="1470" y="560"/>
+            </graphics>
+         </place>
+         <referencePlace id="s4_ack" ref="d_ack">
+            <name>
+               <text>Ack</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <referenceRole>fusion</referenceRole>
+            </toolspecific>
+            <graphics>
+               <position x="1710" y="470"/>
+            </graphics>
+         </referencePlace>
+         <transition id="s4_serve">
+            <name>
+               <text>Serve</text>
+            </name>
+            <toolspecific tool="PetriObjModel" version="2.3.0">
+               <timeDelay>3.0</timeDelay>
+               <delayMeanValue>3.0</delayMeanValue>
+            </toolspecific>
+            <graphics>
+               <position x="1590" y="470"/>
+            </graphics>
+         </transition>
+         <arc id="arc-5a7901f0" source="s4_task" target="s4_serve">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-bcee978a" source="s4_busy" target="s4_serve">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-596203e4" source="s4_serve" target="s4_ack">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+         <arc id="arc-fbfc7fcb" source="s4_serve" target="s4_busy">
+            <inscription>
+               <text>1</text>
+            </inscription>
+         </arc>
+      </page>
+      <toolspecific tool="PetriObjModel" version="2.3.0">
+         <petriObjectLinks>
+            <link sourceElement="0"
+                  sourceElementId="s1_task"
+                  sourceObject="1"
+                  targetElement="1"
+                  targetElementId="d_sent"
+                  targetObject="0"
+                  type="placeFusion"/>
+            <link sourceElement="2"
+                  sourceElementId="s1_ack"
+                  sourceObject="1"
+                  targetElement="2"
+                  targetElementId="d_ack"
+                  targetObject="0"
+                  type="placeFusion"/>
+            <link sourceElement="0"
+                  sourceElementId="s2_task"
+                  sourceObject="2"
+                  targetElement="1"
+                  targetElementId="d_sent"
+                  targetObject="0"
+                  type="placeFusion"/>
+            <link sourceElement="2"
+                  sourceElementId="s2_ack"
+                  sourceObject="2"
+                  targetElement="2"
+                  targetElementId="d_ack"
+                  targetObject="0"
+                  type="placeFusion"/>
+            <link sourceElement="0"
+                  sourceElementId="s3_task"
+                  sourceObject="3"
+                  targetElement="1"
+                  targetElementId="d_sent"
+                  targetObject="0"
+                  type="placeFusion"/>
+            <link sourceElement="2"
+                  sourceElementId="s3_ack"
+                  sourceObject="3"
+                  targetElement="2"
+                  targetElementId="d_ack"
+                  targetObject="0"
+                  type="placeFusion"/>
+            <link sourceElement="0"
+                  sourceElementId="s4_task"
+                  sourceObject="4"
+                  targetElement="1"
+                  targetElementId="d_sent"
+                  targetObject="0"
+                  type="placeFusion"/>
+            <link sourceElement="2"
+                  sourceElementId="s4_ack"
+                  sourceObject="4"
+                  targetElement="2"
+                  targetElementId="d_ack"
+                  targetObject="0"
+                  type="placeFusion"/>
+         </petriObjectLinks>
+         <petriObjectGroups>
+            <group members="1 2 3 4" name="Server"/>
+         </petriObjectGroups>
+      </toolspecific>
+   </net>
+</pnml>
