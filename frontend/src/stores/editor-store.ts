@@ -15,6 +15,7 @@ import type { InstantiatedSubnet } from "@/lib/petri-object-instantiate";
 import {
   allNodeIds,
   cloneElements,
+  connectorOf,
   frameBoundsFor,
   fusionGroupsByPlace,
   getLinks,
@@ -256,6 +257,14 @@ interface EditorState {
   ) => string | null;
   updateObjectLink: (id: string, patch: Partial<Omit<ObjectLink, "id" | "type">>) => void;
   deleteObjectLink: (id: string) => void;
+  /**
+   * "Split the whole connector": removes every placeFusion link of the pair
+   * `linkId` belongs to (see connectorOf) as ONE undo step. `deleteObjectLink`
+   * is "Split the shared place": just the one clicked; this is its
+   * whole-pair sibling, only meaningfully different when the connector holds
+   * more than one link.
+   */
+  splitConnector: (linkId: string) => void;
 
   deleteSelection: () => void;
   deleteElement: (ref: ElementRef) => void;
@@ -1377,6 +1386,24 @@ export const useEditorStore = create<EditorState>()(
       future: [],
       dirty: true,
       selection: selection.filter((s) => s.id !== id),
+    });
+  },
+
+  splitConnector: (linkId) => {
+    const { net, past, selection } = get();
+    const connector = connectorOf(net, linkId);
+    if (connector.length === 0) return;
+    // One set() for every link the connector holds, the same way
+    // deleteSelection batches a whole selection's removal into one undo step
+    // rather than one deleteObjectLink call per link.
+    const removedIds = new Set(connector.map((l) => l.id));
+    const links = getLinks(net).filter((l) => !removedIds.has(l.id));
+    set({
+      net: { ...net, links },
+      past: pushHistory(past, net),
+      future: [],
+      dirty: true,
+      selection: selection.filter((s) => !removedIds.has(s.id)),
     });
   },
 

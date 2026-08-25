@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { ObjectFrame, ObjectLink, PetriNetData, PetriTransition } from "@/types/petri";
 import {
   cloneElements,
+  connectorOf,
+  connectorsOf,
   fusionGroupsByPlace,
   isLocalToNet,
   objectAsGroup,
@@ -108,6 +110,86 @@ describe("fusionGroupsByPlace", () => {
       ]),
     );
     expect(groups.size).toBe(0);
+  });
+});
+
+describe("connectorOf / connectorsOf", () => {
+  // Two Petri-objects (oa, ob) each contributing three places, a third
+  // object (oc) with one more, and two free places belonging to no object.
+  function connectorNet(links: ObjectLink[]): PetriNetData {
+    return {
+      name: "n",
+      places: [
+        place("p1", "oa"),
+        place("p2", "oa"),
+        place("p3", "oa"),
+        place("p4", "ob"),
+        place("p5", "ob"),
+        place("p6", "ob"),
+        place("p7", "oc"),
+        place("free1"),
+        place("free2"),
+      ],
+      transitions: [],
+      arcs: [],
+      links,
+    };
+  }
+
+  it("bundles every link between the same pair of objects into one connector, the queried link included", () => {
+    const net = connectorNet([
+      fusion("l1", "p1", "p4"),
+      fusion("l2", "p2", "p5"),
+      fusion("l3", "p3", "p6"),
+    ]);
+    expect(connectorOf(net, "l2").map((l) => l.id)).toEqual(["l1", "l2", "l3"]);
+  });
+
+  it("keeps a link to a third object out of a different pair's connector", () => {
+    const net = connectorNet([
+      fusion("l1", "p1", "p4"), // oa <-> ob
+      fusion("l2", "p2", "p5"), // oa <-> ob
+      fusion("l3", "p7", "p1"), // oc <-> oa, a different pair
+    ]);
+    expect(connectorOf(net, "l1").map((l) => l.id)).toEqual(["l1", "l2"]);
+    expect(connectorOf(net, "l3").map((l) => l.id)).toEqual(["l3"]);
+  });
+
+  it("a link with a free end is a connector of its own, even alongside other links", () => {
+    const net = connectorNet([fusion("l1", "p1", "p4"), fusion("l2", "free1", "free2")]);
+    expect(connectorOf(net, "l2").map((l) => l.id)).toEqual(["l2"]);
+  });
+
+  it("returns the connector in declaration order regardless of which member was queried", () => {
+    const net = connectorNet([
+      fusion("l1", "p1", "p4"),
+      fusion("l2", "p2", "p5"),
+      fusion("l3", "p3", "p6"),
+    ]);
+    // Querying the LAST-declared member still comes back first-declared-first.
+    expect(connectorOf(net, "l3").map((l) => l.id)).toEqual(["l1", "l2", "l3"]);
+  });
+
+  it("has no connector for an id that isn't a placeFusion link", () => {
+    const net = connectorNet([
+      { id: "l1", type: "placeToTransition", sourceId: "p1", targetId: "t1", quantity: 1 },
+    ]);
+    expect(connectorOf(net, "l1")).toEqual([]);
+    expect(connectorOf(net, "does-not-exist")).toEqual([]);
+  });
+
+  it("connectorsOf groups the whole net into its connectors, one entry per pair plus one per free-ended link", () => {
+    const net = connectorNet([
+      fusion("l1", "p1", "p4"), // oa <-> ob, connector 1
+      fusion("l2", "p2", "p5"), // oa <-> ob, connector 1
+      fusion("l3", "p7", "p1"), // oc <-> oa, connector 2
+      fusion("l4", "free1", "free2"), // free ends, connector of its own
+    ]);
+    expect(connectorsOf(net).map((c) => c.map((l) => l.id))).toEqual([
+      ["l1", "l2"],
+      ["l3"],
+      ["l4"],
+    ]);
   });
 });
 

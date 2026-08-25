@@ -273,6 +273,51 @@ describe("editor-store object links", () => {
     expect(useEditorStore.getState().net.links).toHaveLength(0);
   });
 
+  it("splitConnector on a connector of one link behaves like deleteObjectLink", () => {
+    const { p1, p2 } = twoFramedPlaces();
+    const id = useEditorStore.getState().addObjectLink("placeFusion", p1, p2)!;
+    useEditorStore.getState().splitConnector(id);
+    expect(useEditorStore.getState().net.links).toHaveLength(0);
+  });
+
+  it("splitConnector removes every link of the connector, leaves other connectors untouched, one undo step for all of them", () => {
+    const { o1, o2, p1, p2 } = twoFramedPlaces();
+    const firstLinkId = useEditorStore.getState().addObjectLink("placeFusion", p1, p2)!;
+    // Two more places shared between the SAME pair of objects, together with
+    // firstLinkId, a connector of three placeFusion links, o1 <-> o2.
+    const extraLinkIds = [0, 1].map((i) => {
+      const a = useEditorStore.getState().addPlace(10, 40 + i * 40);
+      const b = useEditorStore.getState().addPlace(310, 40 + i * 40);
+      useEditorStore.getState().addElementToObject(a, "place", o1);
+      useEditorStore.getState().addElementToObject(b, "place", o2);
+      return useEditorStore.getState().addObjectLink("placeFusion", a, b)!;
+    });
+    const connectorLinkIds = [firstLinkId, ...extraLinkIds];
+
+    // A DIFFERENT connector: a third object sharing one place with o1. This
+    // must survive splitting the (o1, o2) connector untouched.
+    const o3 = useEditorStore.getState().addObjectFrame(600, 0);
+    const p5 = useEditorStore.getState().addPlace(10, 500);
+    const p6 = useEditorStore.getState().addPlace(610, 10);
+    useEditorStore.getState().addElementToObject(p5, "place", o1);
+    useEditorStore.getState().addElementToObject(p6, "place", o3);
+    const unrelatedLinkId = useEditorStore.getState().addObjectLink("placeFusion", p5, p6)!;
+
+    expect(useEditorStore.getState().net.links).toHaveLength(4);
+
+    useEditorStore.getState().splitConnector(connectorLinkIds[1]);
+
+    const after = useEditorStore.getState().net;
+    expect(after.links!.map((l) => l.id)).toEqual([unrelatedLinkId]);
+
+    useEditorStore.getState().undo();
+    const restored = useEditorStore.getState().net;
+    expect(restored.links).toHaveLength(4);
+    expect(new Set(restored.links!.map((l) => l.id))).toEqual(
+      new Set([...connectorLinkIds, unrelatedLinkId]),
+    );
+  });
+
   it("updateObjectLink patches quantity/informational", () => {
     const o1 = useEditorStore.getState().addObjectFrame(0, 0);
     const o2 = useEditorStore.getState().addObjectFrame(300, 0);

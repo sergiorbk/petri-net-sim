@@ -573,6 +573,71 @@ export function fusionGroupsByPlace(net: PetriNetData): Map<string, FusionGroup>
   return result;
 }
 
+/**
+ * The connector a placeFusion link belongs to: every placeFusion link joining
+ * the same pair of Petri-objects, in declaration order, including `linkId`
+ * itself (matches desktop PetriObjModelPaint's GraphCanvasModel.connectorOf).
+ * Two objects sharing three places are joined by one connector of three place
+ * identifications, not three unrelated links, and treating it as one thing is
+ * what lets the pair be reasoned about, and detached, as a unit.
+ *
+ * Derived, never stored: a connector is entirely determined by which objects
+ * the existing links run between, so a second record of it could only ever be
+ * a record that disagrees.
+ *
+ * A link with an end belonging to no object is a connector of its own. The
+ * concept joins two Petri-objects, and loose places are not one; bundling
+ * every loose link into a single "no-object" connector would be an artefact
+ * of saying null equals null.
+ *
+ * The connector is a "shared place" concept specifically: only placeFusion
+ * links participate, the same as on the desktop, which has no other kind of
+ * cross-object link. `linkId` naming something else (or nothing at all)
+ * yields an empty list, not a single-element fallback: such an id simply
+ * isn't part of any connector.
+ */
+export function connectorOf(net: PetriNetData, linkId: string): ObjectLink[] {
+  const fusionLinks = getLinks(net).filter((l) => l.type === "placeFusion");
+  const link = fusionLinks.find((l) => l.id === linkId);
+  if (!link) return [];
+
+  // sourceId is the copy ("joined"), targetId is the master, see
+  // rejectionForFusion's docstring for why the direction is load-bearing.
+  // A connector doesn't care which end is which, only which two objects the
+  // link spans, so both orderings of the pair are matched below.
+  const masterOwner = ownerOf(net, link.targetId);
+  const joinedOwner = ownerOf(net, link.sourceId);
+  if (masterOwner === undefined || joinedOwner === undefined) return [link];
+
+  return fusionLinks.filter((candidate) => {
+    const master = ownerOf(net, candidate.targetId);
+    const joined = ownerOf(net, candidate.sourceId);
+    return (
+      (master === masterOwner && joined === joinedOwner) ||
+      (master === joinedOwner && joined === masterOwner)
+    );
+  });
+}
+
+/**
+ * Every connector on this net, each as the list of links that make it up:
+ * one entry per pair of objects sharing at least one place, plus one entry
+ * per placeFusion link with an end outside any object. Declaration order
+ * throughout, matching the desktop's own GraphCanvasModel.connectors.
+ */
+export function connectorsOf(net: PetriNetData): ObjectLink[][] {
+  const fusionLinks = getLinks(net).filter((l) => l.type === "placeFusion");
+  const accountedFor = new Set<string>();
+  const found: ObjectLink[][] = [];
+  for (const link of fusionLinks) {
+    if (accountedFor.has(link.id)) continue;
+    const connector = connectorOf(net, link.id);
+    for (const l of connector) accountedFor.add(l.id);
+    found.push(connector);
+  }
+  return found;
+}
+
 export type FusionRejectionReason =
   | "selfLink"
   | "alreadyLinked"

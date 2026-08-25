@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildGraph } from "./EditorCanvas";
+import { connectorOf } from "@/lib/petri-object-model";
 import type { PetriNetData } from "@/types/petri";
 import type { PlaceNodeData } from "@/components/simulation/PlaceNode";
 
@@ -150,5 +151,90 @@ describe("buildGraph", () => {
     const back = edges.find((e) => e.id === "a2")!.data as { midOffset: number };
     expect(there.midOffset).not.toBe(0);
     expect(Math.sign(there.midOffset)).toBe(-Math.sign(back.midOffset));
+  });
+
+  /**
+   * Selecting one strand of a connector (see connectorOf in
+   * petri-object-model.ts) lights the whole pair of objects, in two colours:
+   * the strand actually clicked in the accent, the rest of the connector in a
+   * held-back variant, never the same colour as either the accent or a plain
+   * unselected fusion tie, in either theme. A link belonging to a DIFFERENT
+   * connector (a different pair of objects) gets neither.
+   */
+  function netWithTwoConnectors(): PetriNetData {
+    return {
+      name: "connectors",
+      places: [
+        { id: "p1", name: "P1", tokens: 0, graphics: { x: 0, y: 0 }, objectId: "oa" },
+        { id: "p2", name: "P2", tokens: 0, graphics: { x: 0, y: 100 }, objectId: "oa" },
+        { id: "p3", name: "P3", tokens: 0, graphics: { x: 200, y: 0 }, objectId: "ob" },
+        { id: "p4", name: "P4", tokens: 0, graphics: { x: 200, y: 100 }, objectId: "ob" },
+        { id: "p5", name: "P5", tokens: 0, graphics: { x: 0, y: 200 }, objectId: "oa" },
+        { id: "p6", name: "P6", tokens: 0, graphics: { x: 400, y: 200 }, objectId: "oc" },
+      ],
+      transitions: [],
+      arcs: [],
+      objects: [
+        { id: "oa", name: "A", priority: 0, graphics: { x: -20, y: -20, width: 300, height: 350 } },
+        { id: "ob", name: "B", priority: 0, graphics: { x: 180, y: -20, width: 150, height: 150 } },
+        { id: "oc", name: "C", priority: 0, graphics: { x: 380, y: 180, width: 150, height: 150 } },
+      ],
+      links: [
+        // oa <-> ob, two shared places: one connector.
+        { id: "l1", type: "placeFusion", sourceId: "p1", targetId: "p3", quantity: 1 },
+        { id: "l2", type: "placeFusion", sourceId: "p2", targetId: "p4", quantity: 1 },
+        // oa <-> oc: a different pair, a connector of its own.
+        { id: "l3", type: "placeFusion", sourceId: "p5", targetId: "p6", quantity: 1 },
+      ],
+    };
+  }
+
+  it("colours the clicked strand with the accent and its connector siblings with the held-back tint", () => {
+    const net = netWithTwoConnectors();
+    const selectedIds = new Set(["l1"]);
+    const connectorSiblingIds = new Set(
+      connectorOf(net, "l1")
+        .filter((l) => l.id !== "l1")
+        .map((l) => l.id),
+    );
+    const { edges } = buildGraph(
+      net,
+      selectedIds,
+      null,
+      null,
+      "curved",
+      "rect",
+      undefined,
+      undefined,
+      undefined,
+      true,
+      connectorSiblingIds,
+    );
+
+    const clicked = edges.find((e) => e.id === "l1")!;
+    const sibling = edges.find((e) => e.id === "l2")!;
+    const otherConnector = edges.find((e) => e.id === "l3")!;
+
+    const clickedStroke = (clicked.style as { stroke: string }).stroke;
+    const siblingStroke = (sibling.style as { stroke: string }).stroke;
+    const otherStroke = (otherConnector.style as { stroke: string }).stroke;
+
+    expect(clicked.selected).toBe(true);
+    expect(sibling.selected).toBe(false);
+    // Two distinct colours for the clicked strand and its held-back siblings…
+    expect(siblingStroke).not.toBe(clickedStroke);
+    // …and neither the accent nor the held-back tint is the plain, unrelated
+    // fusion colour that an edge outside any connector selection keeps.
+    expect(otherStroke).not.toBe(clickedStroke);
+    expect(otherStroke).not.toBe(siblingStroke);
+    expect(otherStroke).toBe("#a855f7");
+  });
+
+  it("leaves every fusion edge in the default colour when nothing is selected", () => {
+    const net = netWithTwoConnectors();
+    const { edges } = buildGraph(net, new Set(), null);
+    for (const id of ["l1", "l2", "l3"]) {
+      expect((edges.find((e) => e.id === id)!.style as { stroke: string }).stroke).toBe("#a855f7");
+    }
   });
 });

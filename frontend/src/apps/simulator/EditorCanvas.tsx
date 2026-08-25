@@ -54,6 +54,7 @@ import { getDraggingTemplate } from "@/lib/object-drag-state";
 import { parsePnml, summarizeImportWarnings } from "@/lib/pnml-import";
 import {
   cloneElements,
+  connectorOf,
   frameAtPoint,
   fusionGroupsByPlace,
   getLinks,
@@ -712,6 +713,22 @@ function resolveEndpoint(
   return { node: frameId, handle: `port-${end}-${connectionId}` };
 }
 
+/**
+ * Two-colour connector highlight, used only where placeFusion edges are
+ * drawn below: the strand actually clicked draws in the app's own accent
+ * token, and every other link of the same connector draws in a held-back
+ * tint of it: one colour for both would say "these are all equally what
+ * you picked", which is true of neither. A plain arc or a directional
+ * cross-object link is never part of a connector (see connectorOf), so
+ * buildEdge below has no third bucket to draw, only "selected" or not, same
+ * as before. The tint is mixed against the current surface rather than a
+ * second hardcoded literal, so it reads as "the same accent, dialled back"
+ * in both light and dark instead of importing the desktop's own light/dark
+ * literals.
+ */
+const CONNECTOR_ACCENT = "var(--accent)";
+const CONNECTOR_HELD_BACK = "color-mix(in srgb, var(--accent) 42%, var(--surface))";
+
 function buildEdge(
   arc: FlowConnection,
   selected: boolean,
@@ -922,6 +939,10 @@ export function buildGraph(
   onEditObject: (id: string) => void = () => {},
   externalConnections: Record<string, string[]> | undefined = undefined,
   canDrag: boolean = true,
+  // Link ids that share a connector with a selected placeFusion link but
+  // aren't themselves selected. Appended last, defaulting to empty, so every
+  // existing positional call (tests, ReadOnlyCanvas) keeps working unchanged.
+  connectorSiblingIds: Set<string> = new Set(),
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
   // Arcs and directional cross-object links are routed and drawn together, so
   // a connection that happens to cross an object boundary looks and behaves
@@ -1165,7 +1186,7 @@ export function buildGraph(
   // that, so it keeps a distinct look, a dash-dot tie with no arrowhead,
   // rendered through each node's fixed fallback handle pair. FusionEdge owns
   // the dash pattern and stroke width itself; only the colour (which depends
-  // on selection) is decided here.
+  // on selection and connector membership) is decided here.
   for (const link of getLinks(net)) {
     if (link.type !== "placeFusion") continue;
     if (isInternalToCollapsedFrame(net, hiddenIds, link)) continue;
@@ -1176,6 +1197,8 @@ export function buildGraph(
       net, hiddenIds, link.targetId, "target", link.id, LINK_TARGET_HANDLE,
     );
     if (!source || !target) continue;
+    const isSelected = selectedIds.has(link.id);
+    const isSibling = !isSelected && connectorSiblingIds.has(link.id);
     edges.push({
       id: link.id,
       source: source.node,
@@ -1183,9 +1206,9 @@ export function buildGraph(
       sourceHandle: source.handle,
       targetHandle: target.handle,
       type: "fusion",
-      selected: selectedIds.has(link.id),
+      selected: isSelected,
       style: {
-        stroke: selectedIds.has(link.id) ? "#3b82f6" : "#a855f7",
+        stroke: isSelected ? CONNECTOR_ACCENT : isSibling ? CONNECTOR_HELD_BACK : "#a855f7",
       },
     });
   }
@@ -1276,7 +1299,11 @@ const OBJECT_DRAG_MIN_PX = 10;
 type ContextMenuTarget =
   | { kind: "canvas" }
   | { kind: "node"; id: string; nodeKind: "place" | "transition" }
-  | { kind: "frame"; id: string };
+  | { kind: "frame"; id: string }
+  // Always a placeFusion link, the only ObjectLink type a connector is made
+  // of (see connectorOf). Other link types (and plain arcs) fall through to
+  // the canvas menu unchanged, same as before this case existed.
+  | { kind: "link"; id: string };
 
 interface EditorCanvasInnerProps {
   className?: string;
@@ -1306,6 +1333,7 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
   const toggleObjectCollapsed = useEditorStore((s) => s.toggleObjectCollapsed);
   const addObjectLink = useEditorStore((s) => s.addObjectLink);
   const linkPlaceToForeignTransition = useEditorStore((s) => s.linkPlaceToForeignTransition);
+  const splitConnector = useEditorStore((s) => s.splitConnector);
   const ungroupObject = useEditorStore((s) => s.ungroupObject);
   const duplicateObject = useEditorStore((s) => s.duplicateObject);
   const deleteObject = useEditorStore((s) => s.deleteObject);
@@ -1330,6 +1358,21 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
     () => new Set(selection.map((s) => s.id)),
     [selection],
   );
+
+  // Selecting one strand of a connector lights the whole thing: every OTHER
+  // link sharing the pair of objects gets the held-back colour in buildGraph.
+  // A selection of several links can belong to several different connectors
+  // at once, so this unions every one of them.
+  const connectorSiblingIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const ref of selection) {
+      if (ref.kind !== "link") continue;
+      for (const sibling of connectorOf(net, ref.id)) {
+        if (sibling.id !== ref.id) ids.add(sibling.id);
+      }
+    }
+    return ids;
+  }, [selection, net]);
 
   const onToggleObjectCollapsed = useCallback(
     (id: string) => toggleObjectCollapsed(id),
@@ -1378,10 +1421,12 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         stableEditObject,
         externalConnections,
         nodesDraggable,
+        connectorSiblingIds,
       ),
     [
       net,
       selectedIds,
+      connectorSiblingIds,
       pendingArcSource,
       isSimulating,
       currentSnapshot,
@@ -2580,6 +2625,30 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         ];
       }
 
+      if (target.kind === "link") {
+        // The connector (see connectorOf) is every placeFusion link sharing
+        // this one's pair of objects. "Split the whole connector" is only
+        // offered once that pair shares more than one place: on a pair
+        // sharing exactly one, it would do the same thing as "Split the
+        // shared place" under a second name.
+        const connector = connectorOf(state.net, target.id);
+        const items: CanvasContextMenuItem[] = [
+          {
+            label: t("canvas.contextMenu.splitSharedPlace"),
+            action: () => deleteElement({ id: target.id, kind: "link" }),
+            danger: true,
+          },
+        ];
+        if (connector.length > 1) {
+          items.push({
+            label: t("canvas.contextMenu.splitConnector", { count: connector.length }),
+            action: () => splitConnector(target.id),
+            danger: true,
+          });
+        }
+        return items;
+      }
+
       const hasNodeSelection = state.selection.some(
         (r) => r.kind === "place" || r.kind === "transition" || r.kind === "object",
       );
@@ -2621,6 +2690,7 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       ungroupObject,
       deleteObject,
       deleteElement,
+      splitConnector,
     ],
   );
 
@@ -2646,6 +2716,21 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       if (nodeId && getObjects(currentNet).some((o) => o.id === nodeId)) {
         setSelection([{ id: nodeId, kind: "object" }]);
         setContextMenu({ ...point, target: { kind: "frame", id: nodeId } });
+        return;
+      }
+
+      // React Flow renders an edge as <g class="react-flow__edge" data-id="…">,
+      // the same attribute the walk above already follows for nodes, so a
+      // right-click that lands on the tie itself resolves the same way. Only
+      // a placeFusion link gets its own menu (the connector-split commands);
+      // any other link id, and every plain arc id, falls through unchanged.
+      const link = nodeId ? getLinks(currentNet).find((l) => l.id === nodeId) : undefined;
+      if (nodeId && link?.type === "placeFusion") {
+        const alreadySelected = useEditorStore
+          .getState()
+          .selection.some((r) => r.id === nodeId);
+        if (!alreadySelected) setSelection([{ id: nodeId, kind: "link" }]);
+        setContextMenu({ ...point, target: { kind: "link", id: nodeId } });
         return;
       }
 

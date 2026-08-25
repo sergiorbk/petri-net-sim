@@ -200,7 +200,8 @@
       "position": "Координати",
       "firing": "Спрацювання",
       "endpoints": "Вузли",
-      "behavior": "Поведінка"
+      "behavior": "Поведінка",
+      "connector": "Конектор"
     },
     "field": {
       "id": "ID",
@@ -516,7 +517,9 @@
       "ungroup": "Розгрупувати на звичайні елементи",
       "deleteObjectWithContents": "Видалити об'єкт разом із вмістом",
       "removeFromObject": "Вилучити з об'єкта",
-      "deleteElement": "Видалити"
+      "deleteElement": "Видалити",
+      "splitSharedPlace": "Розділити спільну позицію",
+      "splitConnector": "Розділити весь конектор ({{count}} спільних позицій)"
     },
     "fusion": {
       "rejection": {

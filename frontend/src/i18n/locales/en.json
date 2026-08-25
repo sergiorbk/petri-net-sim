@@ -200,7 +200,8 @@
       "position": "Position",
       "firing": "Firing",
       "endpoints": "Endpoints",
-      "behavior": "Behavior"
+      "behavior": "Behavior",
+      "connector": "Connector"
     },
     "field": {
       "id": "ID",
@@ -516,7 +517,9 @@
       "ungroup": "Ungroup into plain elements",
       "deleteObjectWithContents": "Delete object and contents",
       "removeFromObject": "Remove from object",
-      "deleteElement": "Delete"
+      "deleteElement": "Delete",
+      "splitSharedPlace": "Split the shared place",
+      "splitConnector": "Split the whole connector ({{count}} shared places)"
     },
     "fusion": {
       "rejection": {
