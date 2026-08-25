@@ -60,6 +60,7 @@ import {
   getObjects,
   objectsParentFirst,
   ownerOf,
+  rejectionForFusion,
   resolveFusionMarking,
   resolveObjectBand,
 } from "@/lib/petri-object-model";
@@ -1411,7 +1412,17 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         return sourceKind !== targetKind ? addArc(sourceId, targetId) : null;
       }
       if (sourceKind === "place" && targetKind === "place") {
-        return addObjectLink("placeFusion", sourceId, targetId);
+        // The user drags FROM the place being repeated (the master, this
+        // gesture's sourceId) TO the place that copies it (this gesture's
+        // targetId), but addObjectLink's own sourceId/targetId mean STORAGE
+        // direction, copy then master (see its doc comment), so the two are
+        // flipped here rather than passed straight through.
+        const rejection = rejectionForFusion(currentNet, targetId, sourceId);
+        if (rejection) {
+          toast(t(`canvas.fusion.rejection.${rejection}`), "error");
+          return null;
+        }
+        return addObjectLink("placeFusion", targetId, sourceId);
       }
       if (sourceKind === "transition" && targetKind === "place") {
         return addObjectLink("transitionToPlace", sourceId, targetId);
@@ -1424,7 +1435,7 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       }
       return null; // transition -> transition, even cross-object: not valid
     },
-    [addArc, addObjectLink, linkPlaceToForeignTransition],
+    [addArc, addObjectLink, linkPlaceToForeignTransition, t],
   );
 
   // Live node positions during drag — keeps ReactFlow in sync on every mousemove.

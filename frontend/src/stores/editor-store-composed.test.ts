@@ -144,8 +144,10 @@ describe("editor-store object frames", () => {
     expect(s.net.places).toHaveLength(2); // pid plus the synthesized proxy
     expect(s.net.links).toHaveLength(1);
     expect(s.net.links![0].type).toBe("placeFusion");
-    expect(s.net.links![0].sourceId).toBe(pid);
-    expect(s.net.links![0].targetId).toBe(s.net.arcs[0].source_id);
+    // pid is the master (the real place, holds the marking); the proxy is
+    // the copy, so storage direction (copy -> master) puts the proxy first.
+    expect(s.net.links![0].sourceId).toBe(s.net.arcs[0].source_id);
+    expect(s.net.links![0].targetId).toBe(pid);
   });
 
   it("addObjectFrame avoids colliding with a place/transition id from an externally-loaded net", () => {
@@ -287,19 +289,20 @@ describe("editor-store object links", () => {
     expect(link.quantity).toBe(3);
   });
 
-  it("addObjectLink placeFusion adopts the master (source) place's token count", () => {
+  it("addObjectLink placeFusion adopts the master (target) place's token count", () => {
     const { p1, p2 } = twoFramedPlaces();
     useEditorStore.getState().updatePlace(p1, { tokens: 7 });
     useEditorStore.getState().updatePlace(p2, { tokens: 2 });
 
-    // sourceId is the master — the gesture's first-touched element (see
-    // EditorCanvas's resolveConnection, which always calls addObjectLink with
-    // sourceId = the first thing the user clicked/dragged from).
+    // Storage direction: sourceId is the copy, targetId is the master (see
+    // addObjectLink's own doc comment): a caller resolving a drawn gesture
+    // flips its own (source, target) order to get here; the store itself
+    // never reasons about which end the gesture started from.
     useEditorStore.getState().addObjectLink("placeFusion", p1, p2);
 
     const s = useEditorStore.getState();
-    expect(s.net.places.find((p) => p.id === p1)!.tokens).toBe(7);
-    expect(s.net.places.find((p) => p.id === p2)!.tokens).toBe(7);
+    expect(s.net.places.find((p) => p.id === p1)!.tokens).toBe(2);
+    expect(s.net.places.find((p) => p.id === p2)!.tokens).toBe(2);
   });
 
   it("addObjectLink placeFusion adopts the master's count the other way round too", () => {
@@ -307,49 +310,132 @@ describe("editor-store object links", () => {
     useEditorStore.getState().updatePlace(p1, { tokens: 7 });
     useEditorStore.getState().updatePlace(p2, { tokens: 2 });
 
-    useEditorStore.getState().addObjectLink("placeFusion", p2, p1); // p2 is now the master
+    useEditorStore.getState().addObjectLink("placeFusion", p2, p1); // p1 is now the master (target)
 
     const s = useEditorStore.getState();
-    expect(s.net.places.find((p) => p.id === p1)!.tokens).toBe(2);
-    expect(s.net.places.find((p) => p.id === p2)!.tokens).toBe(2);
+    expect(s.net.places.find((p) => p.id === p1)!.tokens).toBe(7);
+    expect(s.net.places.find((p) => p.id === p2)!.tokens).toBe(7);
   });
 
   it("joining a fusion (link creation + marking adoption) is a single undoable step", () => {
     const { p1, p2 } = twoFramedPlaces();
-    useEditorStore.getState().updatePlace(p1, { tokens: 5 });
+    useEditorStore.getState().updatePlace(p1, { tokens: 5 }); // p1 is the copy here
     const pastBefore = useEditorStore.getState().past.length;
 
-    useEditorStore.getState().addObjectLink("placeFusion", p1, p2);
+    useEditorStore.getState().addObjectLink("placeFusion", p1, p2); // p2 is the master, tokens 0
     expect(useEditorStore.getState().past.length).toBe(pastBefore + 1);
+    // p1 (the copy) gave up its own count for the master's on join.
+    expect(useEditorStore.getState().net.places.find((p) => p.id === p1)!.tokens).toBe(0);
 
     useEditorStore.getState().undo();
     const s = useEditorStore.getState();
     expect(s.net.links ?? []).toHaveLength(0);
-    expect(s.net.places.find((p) => p.id === p2)!.tokens).toBe(0); // marking adoption undone together with the link
+    expect(s.net.places.find((p) => p.id === p1)!.tokens).toBe(5); // marking adoption undone together with the link
+    expect(s.net.places.find((p) => p.id === p2)!.tokens).toBe(0);
   });
 
-  it("a shared place is strictly 1-to-1 — a place already fused refuses a second fusion", () => {
+  it("a fan of three copies from one master is accepted: the desktop's core change from strict 1-to-1", () => {
+    const o1 = useEditorStore.getState().addObjectFrame(0, 0); // holds the master
+    const o2 = useEditorStore.getState().addObjectFrame(300, 0);
+    const o3 = useEditorStore.getState().addObjectFrame(600, 0);
+    const o4 = useEditorStore.getState().addObjectFrame(900, 0);
+    const master = useEditorStore.getState().addPlace(10, 10);
+    const copyA = useEditorStore.getState().addPlace(310, 10);
+    const copyB = useEditorStore.getState().addPlace(610, 10);
+    const copyC = useEditorStore.getState().addPlace(910, 10);
+    useEditorStore.getState().addElementToObject(master, "place", o1);
+    useEditorStore.getState().addElementToObject(copyA, "place", o2);
+    useEditorStore.getState().addElementToObject(copyB, "place", o3);
+    useEditorStore.getState().addElementToObject(copyC, "place", o4);
+
+    const idA = useEditorStore.getState().addObjectLink("placeFusion", copyA, master);
+    const idB = useEditorStore.getState().addObjectLink("placeFusion", copyB, master);
+    const idC = useEditorStore.getState().addObjectLink("placeFusion", copyC, master);
+    expect(idA).not.toBeNull();
+    expect(idB).not.toBeNull();
+    expect(idC).not.toBeNull();
+
+    const s = useEditorStore.getState();
+    expect(s.net.links).toHaveLength(3);
+    for (const link of s.net.links!) expect(link.targetId).toBe(master);
+  });
+
+  it("addObjectLink refuses a second master for the same copy", () => {
     const o1 = useEditorStore.getState().addObjectFrame(0, 0);
     const o2 = useEditorStore.getState().addObjectFrame(300, 0);
     const o3 = useEditorStore.getState().addObjectFrame(600, 0);
-    const p1 = useEditorStore.getState().addPlace(10, 10);
-    const p2 = useEditorStore.getState().addPlace(310, 10);
-    const p3 = useEditorStore.getState().addPlace(610, 10);
-    useEditorStore.getState().addElementToObject(p1, "place", o1);
-    useEditorStore.getState().addElementToObject(p2, "place", o2);
-    useEditorStore.getState().addElementToObject(p3, "place", o3);
+    const copy = useEditorStore.getState().addPlace(10, 10);
+    const masterA = useEditorStore.getState().addPlace(310, 10);
+    const masterB = useEditorStore.getState().addPlace(610, 10);
+    useEditorStore.getState().addElementToObject(copy, "place", o1);
+    useEditorStore.getState().addElementToObject(masterA, "place", o2);
+    useEditorStore.getState().addElementToObject(masterB, "place", o3);
 
-    useEditorStore.getState().addObjectLink("placeFusion", p1, p2);
-
-    // p2 already belongs to the {p1, p2} pair — joining p3 to it (from either
-    // side) is refused, matching PetriObjModelPaint's own fusionOf() guard.
-    const viaJoined = useEditorStore.getState().addObjectLink("placeFusion", p3, p2);
-    expect(viaJoined).toBeNull();
-    const viaMaster = useEditorStore.getState().addObjectLink("placeFusion", p1, p3);
-    expect(viaMaster).toBeNull();
+    useEditorStore.getState().addObjectLink("placeFusion", copy, masterA);
+    // copy already repeats masterA: it cannot also repeat masterB, or there
+    // would be no saying which marking it holds.
+    const second = useEditorStore.getState().addObjectLink("placeFusion", copy, masterB);
+    expect(second).toBeNull();
 
     const s = useEditorStore.getState();
     expect(s.net.links).toHaveLength(1);
+  });
+
+  it("addObjectLink refuses a link that would close a loop of copies", () => {
+    const o1 = useEditorStore.getState().addObjectFrame(0, 0);
+    const o2 = useEditorStore.getState().addObjectFrame(300, 0);
+    const o3 = useEditorStore.getState().addObjectFrame(600, 0);
+    const a = useEditorStore.getState().addPlace(10, 10);
+    const b = useEditorStore.getState().addPlace(310, 10);
+    const c = useEditorStore.getState().addPlace(610, 10);
+    useEditorStore.getState().addElementToObject(a, "place", o1);
+    useEditorStore.getState().addElementToObject(b, "place", o2);
+    useEditorStore.getState().addElementToObject(c, "place", o3);
+
+    useEditorStore.getState().addObjectLink("placeFusion", a, b); // a copies b
+    useEditorStore.getState().addObjectLink("placeFusion", b, c); // b copies c
+
+    const closesLoop = useEditorStore.getState().addObjectLink("placeFusion", c, a); // c copies a
+    expect(closesLoop).toBeNull();
+    expect(useEditorStore.getState().net.links).toHaveLength(2);
+  });
+
+  it("addObjectLink allows fusing two free (no-object) places", () => {
+    const free1 = useEditorStore.getState().addPlace(0, 0);
+    const free2 = useEditorStore.getState().addPlace(300, 0);
+
+    const id = useEditorStore.getState().addObjectLink("placeFusion", free1, free2);
+    expect(id).not.toBeNull();
+    expect(useEditorStore.getState().net.links).toHaveLength(1);
+  });
+
+  it("the whole chain adopts the ROOT master's token count, not just the two places just linked", () => {
+    const o1 = useEditorStore.getState().addObjectFrame(0, 0);
+    const o2 = useEditorStore.getState().addObjectFrame(300, 0);
+    const o3 = useEditorStore.getState().addObjectFrame(600, 0);
+    const root = useEditorStore.getState().addPlace(10, 10);
+    const mid = useEditorStore.getState().addPlace(310, 10);
+    const leaf = useEditorStore.getState().addPlace(610, 10);
+    useEditorStore.getState().addElementToObject(root, "place", o1);
+    useEditorStore.getState().addElementToObject(mid, "place", o2);
+    useEditorStore.getState().addElementToObject(leaf, "place", o3);
+
+    useEditorStore.getState().updatePlace(root, { tokens: 9 });
+    useEditorStore.getState().updatePlace(mid, { tokens: 4 });
+    useEditorStore.getState().updatePlace(leaf, { tokens: 4 });
+    // leaf copies mid first, while mid still holds its own separate count:
+    // the pair merges at 4, mid not yet linked to the eventual root at all.
+    useEditorStore.getState().addObjectLink("placeFusion", leaf, mid);
+    expect(useEditorStore.getState().net.places.find((p) => p.id === leaf)!.tokens).toBe(4);
+
+    // Now mid copies root. The merge must reach the WHOLE existing group,
+    // leaf included, and adopt root's count, not just overwrite mid.
+    useEditorStore.getState().addObjectLink("placeFusion", mid, root);
+
+    const s = useEditorStore.getState();
+    expect(s.net.places.find((p) => p.id === root)!.tokens).toBe(9);
+    expect(s.net.places.find((p) => p.id === mid)!.tokens).toBe(9);
+    expect(s.net.places.find((p) => p.id === leaf)!.tokens).toBe(9);
   });
 });
 

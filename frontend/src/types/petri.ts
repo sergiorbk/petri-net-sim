@@ -75,9 +75,18 @@ export type ObjectLinkType = "placeFusion" | "transitionToPlace" | "placeToTrans
 export interface ObjectLink {
   id: string;
   type: ObjectLinkType;
-  /** Place id (fusion, placeToTransition) or transition id (transitionToPlace). */
+  /**
+   * Place id (fusion, placeToTransition) or transition id (transitionToPlace).
+   * For placeFusion specifically, this is the COPY: the place that repeats
+   * another. See rejectionForFusion in petri-object-model.ts for why the
+   * direction is load-bearing, not a free choice.
+   */
   sourceId: string;
-  /** Place id (fusion, transitionToPlace) or transition id (placeToTransition). */
+  /**
+   * Place id (fusion, transitionToPlace) or transition id (placeToTransition).
+   * For placeFusion specifically, this is the MASTER: the place being
+   * repeated, which holds the marking the whole chain adopts.
+   */
   targetId: string;
   quantity: number;
   /** placeToTransition only: test the marking without consuming it. */

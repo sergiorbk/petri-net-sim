@@ -517,6 +517,15 @@
       "deleteObjectWithContents": "Delete object and contents",
       "removeFromObject": "Remove from object",
       "deleteElement": "Delete"
+    },
+    "fusion": {
+      "rejection": {
+        "selfLink": "A place cannot be linked to itself.",
+        "alreadyLinked": "These two places are already linked; a link in the opposite direction is not allowed either.",
+        "copyAlreadyLinked": "That place already copies another one. A place can repeat a single source, otherwise there is no saying which marking it holds.",
+        "wouldCreateLoop": "That would make a loop of links, where each place copies the next.",
+        "sameObject": "Both places belong to the same Petri-object, so linking them would have it repeat itself."
+      }
     }
   },
   "canvasTabs": {

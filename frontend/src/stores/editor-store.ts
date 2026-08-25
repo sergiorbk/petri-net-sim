@@ -27,6 +27,7 @@ import {
   ownerOf,
   reconcileArcsForNewMembership,
   reconcileLinksForNewMembership,
+  rejectionForFusion,
   synthesizePlaceToTransitionFusion,
   type ElementGroup,
 } from "@/lib/petri-object-model";
@@ -226,6 +227,15 @@ interface EditorState {
   ) => void;
   removeElementFromObject: (elementId: string) => void;
 
+  /**
+   * `sourceId`/`targetId` always mean STORAGE direction, the same as
+   * `ObjectLink` itself, never "which end the gesture started from". For
+   * placeFusion specifically that means sourceId is the COPY and targetId is
+   * the MASTER it repeats (see rejectionForFusion), so a caller that resolves
+   * a drawn connection (where the user drags FROM the place being repeated
+   * TO the place that copies it) must pass (copyId, masterId), i.e. the
+   * gesture's target first, not its own (source, target) order verbatim.
+   */
   addObjectLink: (
     type: ObjectLinkType,
     sourceId: string,
@@ -1272,33 +1282,24 @@ export const useEditorStore = create<EditorState>()(
     if (type === "transitionToPlace" && !(sourceIsTransition && targetIsPlace)) return null;
     if (type === "placeToTransition" && !(sourceIsPlace && targetIsTransition)) return null;
 
-    // The whole point of a link is connecting two DIFFERENT objects.
-    if (ownerOf(net, sourceId) === ownerOf(net, targetId)) return null;
-
-    // A shared place is strictly 1-to-1 — a place already fused with someone
-    // else cannot also fuse with this one, matching PetriObjModelPaint's own
-    // fusionOf() guard. Everything else about fusionGroupsByPlace stays
-    // general (it still displays and tolerates a pre-existing multi-way group
-    // loaded from elsewhere); only creating a NEW one through this app's own
-    // UI is what's disallowed here.
-    if (type === "placeFusion") {
-      const existingGroups = fusionGroupsByPlace(net);
-      if (existingGroups.has(sourceId) || existingGroups.has(targetId)) return null;
-    }
-
     const links = getLinks(net);
-    const duplicate =
-      type === "placeFusion"
-        ? links.some(
-            (l) =>
-              l.type === "placeFusion" &&
-              ((l.sourceId === sourceId && l.targetId === targetId) ||
-                (l.sourceId === targetId && l.targetId === sourceId)),
-          )
-        : links.some(
-            (l) => l.type === type && l.sourceId === sourceId && l.targetId === targetId,
-          );
-    if (duplicate) return null;
+
+    if (type === "placeFusion") {
+      // sourceId is the copy, targetId is the master: rejectionForFusion is
+      // the one authority for all five desktop rules (self-link, duplicate in
+      // either direction, one master per copy, no loops, and same-object (the
+      // carve-out from this app's old strict 1-to-1 rule) only refuses two
+      // places that share a DEFINED owner, not two free ones).
+      if (rejectionForFusion(net, sourceId, targetId) !== null) return null;
+    } else {
+      // The whole point of a directional link is connecting two DIFFERENT
+      // objects; placeFusion earns its own same-object carve-out above.
+      if (ownerOf(net, sourceId) === ownerOf(net, targetId)) return null;
+      const duplicate = links.some(
+        (l) => l.type === type && l.sourceId === sourceId && l.targetId === targetId,
+      );
+      if (duplicate) return null;
+    }
 
     const id = nextLinkId(links);
     const link: ObjectLink = {
@@ -1311,22 +1312,23 @@ export const useEditorStore = create<EditorState>()(
     };
     const linkedNet: PetriNetData = { ...net, links: [...links, link] };
 
-    // Joining a fusion adopts the MASTER's count — the master is the side the
-    // gesture started from, i.e. sourceId (the caller always passes the
-    // first-touched element as sourceId; see EditorCanvas's resolveConnection).
-    // Either side may already belong to its own fusion group, so the whole
-    // merged group — not just the two places just linked — ends up at the
-    // master's count. Folding this into the same set() as the link creation
-    // keeps "join + adopt marking" one undoable step.
+    // Joining a fusion adopts the ROOT MASTER's count. targetId is the master
+    // of the link just drawn, but that master can itself already be mid-chain
+    // (a copy of something further up), so the newly merged group takes
+    // whichever member fusionGroupsByPlace resolves as its root, never
+    // targetId blindly, and every member, not just the two just linked, ends
+    // up there. Folding this into the same set() as the link creation keeps
+    // "join + adopt marking" one undoable step.
     let finalNet = linkedNet;
     if (type === "placeFusion") {
-      const masterTokens = net.places.find((p) => p.id === sourceId)?.tokens ?? 0;
-      const mergedGroup = fusionGroupsByPlace(linkedNet).get(sourceId);
+      const mergedGroup = fusionGroupsByPlace(linkedNet).get(targetId);
+      const rootId = mergedGroup?.root ?? targetId;
+      const rootTokens = net.places.find((p) => p.id === rootId)?.tokens ?? 0;
       const memberIds = new Set(mergedGroup?.members ?? [sourceId, targetId]);
       finalNet = {
         ...linkedNet,
         places: linkedNet.places.map((p) =>
-          memberIds.has(p.id) ? { ...p, tokens: masterTokens } : p,
+          memberIds.has(p.id) ? { ...p, tokens: rootTokens } : p,
         ),
       };
     }
