@@ -781,6 +781,9 @@ function buildPlaceNode(
     pulsing: pendingSource || (pulsingIds !== null && pulsingIds.has(place.id)),
     fusionLabel: fusion?.label,
     fusionTitle: fusion?.title,
+    // Both ends of a fusion draw the same way: once two places are one
+    // instance, neither's marking is any more "its own" than the other's.
+    linked: fusion !== null,
     externalConnections,
   };
   return {
@@ -1159,8 +1162,10 @@ export function buildGraph(
 
   // Place fusion is the one link that is not a flow: it declares that two
   // places in different objects are the same place. There is no arc form for
-  // that, so it keeps a distinct look — a dashed tie with no arrowhead —
-  // rendered through each node's fixed fallback handle pair.
+  // that, so it keeps a distinct look, a dash-dot tie with no arrowhead,
+  // rendered through each node's fixed fallback handle pair. FusionEdge owns
+  // the dash pattern and stroke width itself; only the colour (which depends
+  // on selection) is decided here.
   for (const link of getLinks(net)) {
     if (link.type !== "placeFusion") continue;
     if (isInternalToCollapsedFrame(net, hiddenIds, link)) continue;
@@ -1181,8 +1186,6 @@ export function buildGraph(
       selected: selectedIds.has(link.id),
       style: {
         stroke: selectedIds.has(link.id) ? "#3b82f6" : "#a855f7",
-        strokeWidth: selectedIds.has(link.id) ? 2.5 : 1.5,
-        strokeDasharray: "6 3",
       },
     });
   }
