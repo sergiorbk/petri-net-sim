@@ -263,9 +263,36 @@ describe("exportComposedPnml", () => {
     expect(xml).not.toContain("<B>");
   });
 
-  it("raises when a link connects an object to itself", () => {
+  it("drops a placeFusion link that connects an object to itself, warning instead of throwing", () => {
+    // The desktop's own canvas-to-model step skips exactly this link (every
+    // free element folds into one implicit object, so a fusion whose two
+    // ends land in the same object has no structural form). Composed PNML
+    // has no shape for "an object refers to itself" either, so this document
+    // now skips the link rather than refusing to open at all.
     const body = pipelineDemoRequest();
-    body.links[0].target_object = body.links[0].source_object;
+    body.links[0].target_object = body.links[0].source_object; // object0.1 (Ready) -> object0.0 (Pool)
+    const warnings: string[] = [];
+    let xml = "";
+    expect(() => {
+      xml = exportComposedPnml(body, (message) => warnings.push(message));
+    }).not.toThrow();
+    // Both ends stay their own plain <place>: nothing was realised as a
+    // reference for this link, it was skipped outright.
+    expect(xml).toContain('<place id="p_pool">');
+    expect(xml).toContain('<place id="p_ready">');
+    expect(warnings).toEqual([
+      'Dropped the link "Pool" (id "p_pool") = "Ready" (id "p_ready"): both places belong to the ' +
+        "same Petri-object, so linking them would have it repeat itself.",
+    ]);
+  });
+
+  it("still raises when a non-fusion link connects an object to itself", () => {
+    // Rule 5's free-to-free carve-out only ever legalised a *fusion* between
+    // two places with no defined, shared object; a directional link crossing
+    // no object boundary at all remains something composed PNML cannot
+    // express, so nothing here changes for it.
+    const body = pipelineDemoRequest();
+    body.links[1].target_object = body.links[1].source_object;
     expect(() => exportComposedPnml(body)).toThrow(/itself/);
   });
 

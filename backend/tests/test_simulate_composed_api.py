@@ -434,6 +434,43 @@ class TestComposedModelValidationErrors:
         assert details[0]["field"] == "model"
         assert "no consuming input" in details[0]["message"]
 
+    def test_a_place_fusion_rule_violation_is_also_a_400_with_the_message(self, client):
+        """desktop #61/#62: `ComposedModel.validate()` now also runs the five
+        placeFusion rules (`place_fusion_rejection`), and this router calls
+        `validate()` on every request (`_resolve_composed_model`) before a
+        simulation or a preview ever starts -- so a request built by a
+        client that skips the editor's own checks (or a second client
+        entirely) is refused the same actionable way a structurally invalid
+        net already was, never as an opaque 500."""
+        token = _signup(client, "composed-fusion-validation@example.com")
+        body = {
+            "name": "SelfLinked",
+            "objects": [{"name": "Object_1", "net_data": _make_single_place_net_data()}],
+            "links": [
+                {
+                    "type": "placeFusion",
+                    "source_object": 0,
+                    "source_element": 0,
+                    "target_object": 0,
+                    "target_element": 0,
+                }
+            ],
+        }
+
+        resp = client.post(
+            "/api/v1/simulate/composed?simulation_time=10",
+            json=body,
+            headers=_auth(token),
+        )
+
+        assert resp.status_code == 400, resp.text
+        error = resp.json()["error"]
+        assert error["message"] == "Composed model is invalid"
+        details = error["details"]
+        assert details, "the validation messages must survive into the response"
+        assert details[0]["field"] == "model"
+        assert "cannot be linked to itself" in details[0]["message"]
+
 
 class TestSimulationErrorVocabulary:
     """A 4xx from petri-server carries the engine's own rejection text and is

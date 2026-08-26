@@ -450,6 +450,75 @@ class TestLinkObjectsErrorPaths:
         assert "needs a place as its target" in message
 
 
+class TestLinkObjectsFusionRules:
+    """desktop #61: op_link_objects must refuse a placeFusion link that
+    breaks one of ComposedModel.place_fusion_rejection's five rules, not
+    just accept it and leave the mistake to surface later at export or
+    simulation time. Each of these is a broken fan (or worse) built with
+    two or three ordinary tool calls -- exactly the failure mode that used
+    to sail through with no error at any layer."""
+
+    @staticmethod
+    def _three_linkable_objects() -> tuple[PetriNetSession, str, str, str]:
+        session = PetriNetSession()
+        places = []
+        for name in ("A", "B", "C"):
+            _ok(ops.op_create_object(session, name=name))
+            _ok(ops.op_add_place(session, name=f"{name}Place", tokens=1 if name == "A" else 0))
+            _ok(ops.op_add_transition(session, name=f"{name}Go"))
+            places.append(session.net.places[0].id)
+            _ok(ops.op_add_arc(session, source_id=places[-1], target_id=session.net.transitions[0].id))
+        return session, *places
+
+    def test_a_place_cannot_copy_two_masters(self):
+        session, a_place, _b_place, _c_place = self._three_linkable_objects()
+        _ok(ops.op_link_objects(
+            session, link_type="placeFusion",
+            source_object="A", source_element=a_place,
+            target_object="B", target_element="BPlace",
+        ))
+        message = _err(ops.op_link_objects(
+            session, link_type="placeFusion",
+            source_object="A", source_element=a_place,
+            target_object="C", target_element="CPlace",
+        ))
+        assert "already copies another one" in message
+        assert len(session.links) == 1  # the second call left no trace
+
+    def test_reverse_direction_of_an_existing_link_is_refused(self):
+        session, a_place, _b_place, _c_place = self._three_linkable_objects()
+        _ok(ops.op_link_objects(
+            session, link_type="placeFusion",
+            source_object="A", source_element=a_place,
+            target_object="B", target_element="BPlace",
+        ))
+        message = _err(ops.op_link_objects(
+            session, link_type="placeFusion",
+            source_object="B", source_element="BPlace",
+            target_object="A", target_element=a_place,
+        ))
+        assert "opposite direction" in message
+
+    def test_a_fan_of_two_copies_at_one_master_is_accepted(self):
+        """The positive case, built the same way an agent would: B and C
+        both copy A, one tool call each -- legal because A is never the
+        SOURCE of either link."""
+        session, a_place, _b_place, _c_place = self._three_linkable_objects()
+        _ok(ops.op_link_objects(
+            session, link_type="placeFusion",
+            source_object="B", source_element="BPlace",
+            target_object="A", target_element=a_place,
+        ))
+        _ok(ops.op_link_objects(
+            session, link_type="placeFusion",
+            source_object="C", source_element="CPlace",
+            target_object="A", target_element=a_place,
+        ))
+        assert len(session.links) == 2
+        errors = session.build_composed_model().validate()
+        assert errors == []
+
+
 class TestListAndRemoveLinks:
     def test_list_links_empty(self):
         session = PetriNetSession()

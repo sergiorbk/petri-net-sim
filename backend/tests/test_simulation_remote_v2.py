@@ -430,6 +430,65 @@ class TestFusedMarkingDuplication:
         restored = _restore_own_ids(event, own_id, fusion_alias)
         assert restored.markings == {"pB": 4, "pA": 4}
 
+    @staticmethod
+    def _fusion_model_fan():
+        """One master ("pMaster", object 0) repeated by three copies
+        (objects 1-3) -- desktop #61's fan, legal only because each copy is
+        the SOURCE of just one link, all three pointing at the SAME target,
+        never the master pointing at any of them."""
+        from src.domain.composed import ComposedModel, LinkType
+        from src.domain.models import PetriNet
+
+        def _net(name: str, place_id: str, tokens: int) -> PetriNet:
+            net = PetriNet(name=name)
+            p = net.add_place("P1", tokens=tokens, place_id=place_id)
+            t = net.add_transition("T1", mean_delay=1.0, transition_id=f"t{place_id}")
+            net.add_arc(p.id, t.id, arc_id=f"arc{place_id}1")
+            net.add_arc(t.id, p.id, arc_id=f"arc{place_id}2")
+            return net
+
+        model = ComposedModel(name="Fan")
+        model.add_object(_net("Master", "pMaster", 1), name="Master")
+        model.add_object(_net("Copy1", "pCopy1", 0), name="Copy1")
+        model.add_object(_net("Copy2", "pCopy2", 0), name="Copy2")
+        model.add_object(_net("Copy3", "pCopy3", 0), name="Copy3")
+        for copy_index in (1, 2, 3):
+            model.add_link(
+                LinkType.PLACE_FUSION,
+                source_object=copy_index, source_element=0,
+                target_object=0, target_element=0,
+            )
+        assert model.validate() == []
+        return model
+
+    def test_fusion_alias_map_points_every_fan_member_at_the_one_master(self):
+        from src.services.simulation.remote_v2 import _fusion_alias_map
+
+        model = self._fusion_model_fan()
+        assert _fusion_alias_map(model) == {
+            "pCopy1": "pMaster", "pCopy2": "pMaster", "pCopy3": "pMaster",
+        }
+
+    def test_survivor_marking_is_duplicated_onto_every_fan_member(self):
+        from src.services.simulation.engine import SimulationEvent
+        from src.services.simulation.remote_v2 import (
+            _fusion_alias_map, _own_id_map, _restore_own_ids,
+        )
+
+        model = self._fusion_model_fan()
+        own_id = _own_id_map(model)
+        assert own_id is None  # explicit distinct ids, nothing collides
+
+        fusion_alias = _fusion_alias_map(model)
+        event = SimulationEvent(
+            current_time=1.0, step_number=1,
+            markings={"pMaster": 5}, buffers={}, progress=0.1,
+        )
+        restored = _restore_own_ids(event, own_id, fusion_alias)
+        assert restored.markings == {
+            "pMaster": 5, "pCopy1": 5, "pCopy2": 5, "pCopy3": 5,
+        }
+
 
 class TestRunRemoteStreamingV2:
     @pytest.mark.anyio

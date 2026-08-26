@@ -1144,7 +1144,48 @@ class PetriNetSession:
         caught later by ComposedModel.validate" contract, still exercised
         by validate_model/export_pnml/run_simulation the same way a
         hand-authored net_data document's own dangling link is).
+
+        A placeFusion link IS checked here, against
+        `ComposedModel.place_fusion_rejection` (the same five rules
+        `ComposedModel.validate()` runs over a whole document), because this
+        is the one choke point every placeFusion link passes through on its
+        way into a session: the agent tool (`op_link_objects`) and the
+        internal re-link this class does when a dissolved connector's
+        pattern group gets framed again both call this method, and neither
+        reimplements the rules. Without this, two ordinary tool calls could
+        build a fan pointing the wrong way (or a cycle, or a place linked to
+        itself) with no error until a later export or simulation, if ever --
+        `ComposedModel.validate()` is opt-in, nothing calls it on every
+        mutation.
         """
+        if link_type == LinkType.PLACE_FUSION:
+            source_slot = self._link_endpoint_position(source_frame_id, source_element_id)
+            target_slot = self._link_endpoint_position(target_frame_id, target_element_id)
+            # Both sides are expected to resolve -- the caller just found
+            # them via resolve_element_ref, or (the internal re-link path)
+            # via a fresh scan of every object's own places. If one somehow
+            # does not, this is not the place to raise on it either (see
+            # docstring above): fall through and let the ordinary
+            # dangling-link handling at build time take it instead.
+            if source_slot is not None and target_slot is not None:
+                existing_fusions = [
+                    (
+                        self._link_endpoint_position(other.source_frame_id, other.source_element_id),
+                        self._link_endpoint_position(other.target_frame_id, other.target_element_id),
+                    )
+                    for other in self._links
+                    if other.link_type == LinkType.PLACE_FUSION
+                ]
+                existing_slots = [
+                    (source, target)
+                    for source, target in existing_fusions
+                    if source is not None and target is not None
+                ]
+                reason = ComposedModel.place_fusion_rejection(
+                    existing_slots, source_slot, target_slot
+                )
+                if reason is not None:
+                    raise ValueError(reason)
         link = SessionLink(
             link_type=link_type,
             source_frame_id=source_frame_id,

@@ -54,16 +54,19 @@ import { getDraggingTemplate } from "@/lib/object-drag-state";
 import { parsePnml, summarizeImportWarnings } from "@/lib/pnml-import";
 import {
   cloneElements,
+  connectorOf,
   frameAtPoint,
   fusionGroupsByPlace,
   getLinks,
   getObjects,
   objectsParentFirst,
   ownerOf,
+  rejectionForFusion,
   resolveFusionMarking,
   resolveObjectBand,
 } from "@/lib/petri-object-model";
 import { isComposedNet } from "@/lib/petri-composed";
+import { isEraserSweep } from "@/lib/eraser-geometry";
 import { saveCanvasObjectToLibrary } from "@/lib/petri-object-library";
 import { useCanvasTabsStore } from "@/stores/canvas-tabs-store";
 import { NameDialog } from "@/components/common/NameDialog";
@@ -711,6 +714,22 @@ function resolveEndpoint(
   return { node: frameId, handle: `port-${end}-${connectionId}` };
 }
 
+/**
+ * Two-colour connector highlight, used only where placeFusion edges are
+ * drawn below: the strand actually clicked draws in the app's own accent
+ * token, and every other link of the same connector draws in a held-back
+ * tint of it: one colour for both would say "these are all equally what
+ * you picked", which is true of neither. A plain arc or a directional
+ * cross-object link is never part of a connector (see connectorOf), so
+ * buildEdge below has no third bucket to draw, only "selected" or not, same
+ * as before. The tint is mixed against the current surface rather than a
+ * second hardcoded literal, so it reads as "the same accent, dialled back"
+ * in both light and dark instead of importing the desktop's own light/dark
+ * literals.
+ */
+const CONNECTOR_ACCENT = "var(--accent)";
+const CONNECTOR_HELD_BACK = "color-mix(in srgb, var(--accent) 42%, var(--surface))";
+
 function buildEdge(
   arc: FlowConnection,
   selected: boolean,
@@ -780,6 +799,9 @@ function buildPlaceNode(
     pulsing: pendingSource || (pulsingIds !== null && pulsingIds.has(place.id)),
     fusionLabel: fusion?.label,
     fusionTitle: fusion?.title,
+    // Both ends of a fusion draw the same way: once two places are one
+    // instance, neither's marking is any more "its own" than the other's.
+    linked: fusion !== null,
     externalConnections,
   };
   return {
@@ -918,6 +940,10 @@ export function buildGraph(
   onEditObject: (id: string) => void = () => {},
   externalConnections: Record<string, string[]> | undefined = undefined,
   canDrag: boolean = true,
+  // Link ids that share a connector with a selected placeFusion link but
+  // aren't themselves selected. Appended last, defaulting to empty, so every
+  // existing positional call (tests, ReadOnlyCanvas) keeps working unchanged.
+  connectorSiblingIds: Set<string> = new Set(),
 ): { nodes: FlowNode[]; edges: FlowEdge[] } {
   // Arcs and directional cross-object links are routed and drawn together, so
   // a connection that happens to cross an object boundary looks and behaves
@@ -1016,6 +1042,24 @@ export function buildGraph(
     if (!group) continue;
     for (const memberId of group.members) pulsingPlaceIds.add(memberId);
   }
+
+  // The tie lights with the places it joins. Watching a step, the token appears
+  // to jump between two circles that are really one place, and the line saying
+  // so is the only thing on the canvas that explains the jump; leaving it in
+  // its resting colour while both ends pulse reads as though the two were
+  // unrelated. Membership is enough to decide it: pulsingPlaceIds was just
+  // widened to whole groups above, so a link is lit exactly when the group it
+  // belongs to is the one the step touched.
+  const animationLitLinkIds = new Set<string>();
+  if (pulsingPlaceIds.size > 0) {
+    for (const link of getLinks(net)) {
+      if (link.type !== "placeFusion") continue;
+      if (pulsingPlaceIds.has(link.sourceId) || pulsingPlaceIds.has(link.targetId)) {
+        animationLitLinkIds.add(link.id);
+      }
+    }
+  }
+
   const fusionMarkingFor = (placeId: string): number | undefined =>
     simSnapshot ? resolveFusionMarking(fusionGroups, simSnapshot.markings, placeId) : undefined;
 
@@ -1158,8 +1202,10 @@ export function buildGraph(
 
   // Place fusion is the one link that is not a flow: it declares that two
   // places in different objects are the same place. There is no arc form for
-  // that, so it keeps a distinct look — a dashed tie with no arrowhead —
-  // rendered through each node's fixed fallback handle pair.
+  // that, so it keeps a distinct look, a dash-dot tie with no arrowhead,
+  // rendered through each node's fixed fallback handle pair. FusionEdge owns
+  // the dash pattern and stroke width itself; only the colour (which depends
+  // on selection and connector membership) is decided here.
   for (const link of getLinks(net)) {
     if (link.type !== "placeFusion") continue;
     if (isInternalToCollapsedFrame(net, hiddenIds, link)) continue;
@@ -1170,6 +1216,12 @@ export function buildGraph(
       net, hiddenIds, link.targetId, "target", link.id, LINK_TARGET_HANDLE,
     );
     if (!source || !target) continue;
+    // A tie the animation lights reads the same as one the user picked out, and
+    // outranks the connector tint: while a step is running, what the eye needs
+    // is where the token went, not which pair of objects the strand belongs to.
+    const isLit = animationLitLinkIds.has(link.id);
+    const isSelected = selectedIds.has(link.id);
+    const isSibling = !isLit && !isSelected && connectorSiblingIds.has(link.id);
     edges.push({
       id: link.id,
       source: source.node,
@@ -1177,11 +1229,11 @@ export function buildGraph(
       sourceHandle: source.handle,
       targetHandle: target.handle,
       type: "fusion",
-      selected: selectedIds.has(link.id),
+      selected: isSelected,
+      data: { lit: isLit },
       style: {
-        stroke: selectedIds.has(link.id) ? "#3b82f6" : "#a855f7",
-        strokeWidth: selectedIds.has(link.id) ? 2.5 : 1.5,
-        strokeDasharray: "6 3",
+        stroke:
+          isLit || isSelected ? CONNECTOR_ACCENT : isSibling ? CONNECTOR_HELD_BACK : "#a855f7",
       },
     });
   }
@@ -1259,7 +1311,7 @@ function computeImportDrop(
 
 /** Tools that drag out a shape on the canvas instead of panning it. */
 function isRubberBandTool(tool: EditorTool): boolean {
-  return tool === "select-box" || tool === "select-lasso" || tool === "add-object";
+  return tool === "select-box" || tool === "select-lasso" || tool === "add-object" || tool === "delete";
 }
 
 /**
@@ -1272,7 +1324,11 @@ const OBJECT_DRAG_MIN_PX = 10;
 type ContextMenuTarget =
   | { kind: "canvas" }
   | { kind: "node"; id: string; nodeKind: "place" | "transition" }
-  | { kind: "frame"; id: string };
+  | { kind: "frame"; id: string }
+  // Always a placeFusion link, the only ObjectLink type a connector is made
+  // of (see connectorOf). Other link types (and plain arcs) fall through to
+  // the canvas menu unchanged, same as before this case existed.
+  | { kind: "link"; id: string };
 
 interface EditorCanvasInnerProps {
   className?: string;
@@ -1302,6 +1358,7 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
   const toggleObjectCollapsed = useEditorStore((s) => s.toggleObjectCollapsed);
   const addObjectLink = useEditorStore((s) => s.addObjectLink);
   const linkPlaceToForeignTransition = useEditorStore((s) => s.linkPlaceToForeignTransition);
+  const splitConnector = useEditorStore((s) => s.splitConnector);
   const ungroupObject = useEditorStore((s) => s.ungroupObject);
   const duplicateObject = useEditorStore((s) => s.duplicateObject);
   const deleteObject = useEditorStore((s) => s.deleteObject);
@@ -1326,6 +1383,21 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
     () => new Set(selection.map((s) => s.id)),
     [selection],
   );
+
+  // Selecting one strand of a connector lights the whole thing: every OTHER
+  // link sharing the pair of objects gets the held-back colour in buildGraph.
+  // A selection of several links can belong to several different connectors
+  // at once, so this unions every one of them.
+  const connectorSiblingIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const ref of selection) {
+      if (ref.kind !== "link") continue;
+      for (const sibling of connectorOf(net, ref.id)) {
+        if (sibling.id !== ref.id) ids.add(sibling.id);
+      }
+    }
+    return ids;
+  }, [selection, net]);
 
   const onToggleObjectCollapsed = useCallback(
     (id: string) => toggleObjectCollapsed(id),
@@ -1374,10 +1446,12 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         stableEditObject,
         externalConnections,
         nodesDraggable,
+        connectorSiblingIds,
       ),
     [
       net,
       selectedIds,
+      connectorSiblingIds,
       pendingArcSource,
       isSimulating,
       currentSnapshot,
@@ -1411,7 +1485,17 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         return sourceKind !== targetKind ? addArc(sourceId, targetId) : null;
       }
       if (sourceKind === "place" && targetKind === "place") {
-        return addObjectLink("placeFusion", sourceId, targetId);
+        // The user drags FROM the place being repeated (the master, this
+        // gesture's sourceId) TO the place that copies it (this gesture's
+        // targetId), but addObjectLink's own sourceId/targetId mean STORAGE
+        // direction, copy then master (see its doc comment), so the two are
+        // flipped here rather than passed straight through.
+        const rejection = rejectionForFusion(currentNet, targetId, sourceId);
+        if (rejection) {
+          toast(t(`canvas.fusion.rejection.${rejection}`), "error");
+          return null;
+        }
+        return addObjectLink("placeFusion", targetId, sourceId);
       }
       if (sourceKind === "transition" && targetKind === "place") {
         return addObjectLink("transitionToPlace", sourceId, targetId);
@@ -1424,7 +1508,7 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       }
       return null; // transition -> transition, even cross-object: not valid
     },
-    [addArc, addObjectLink, linkPlaceToForeignTransition],
+    [addArc, addObjectLink, linkPlaceToForeignTransition, t],
   );
 
   // Live node positions during drag — keeps ReactFlow in sync on every mousemove.
@@ -1938,6 +2022,39 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         return;
       }
 
+      // Eraser tool: a press barely moved is a click (erase the nearest
+      // reachable element), one that travelled far enough is a sweep (erase
+      // everything the band catches). Both the threshold and the reach live
+      // in lib/eraser-geometry so they're testable without a pointer; this
+      // just converts screen pixels to flow coordinates for them.
+      if (selectionStartRef.current && tool === "delete" && containerRef.current && rfInstance.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const toFlow = (p: { x: number; y: number }) =>
+          rfInstance.current!.screenToFlowPosition({ x: p.x + rect.left, y: p.y + rect.top });
+        const start = selectionStartRef.current;
+        const end = selectionPathRef.current[selectionPathRef.current.length - 1] ?? start;
+        const zoom = rfInstance.current.getViewport().zoom;
+        const startFlow = toFlow(start);
+        const endFlow = toFlow(end);
+
+        if (isEraserSweep(startFlow, endFlow, zoom)) {
+          useEditorStore.getState().eraseInBand({
+            minX: Math.min(startFlow.x, endFlow.x),
+            minY: Math.min(startFlow.y, endFlow.y),
+            maxX: Math.max(startFlow.x, endFlow.x),
+            maxY: Math.max(startFlow.y, endFlow.y),
+          });
+        } else {
+          useEditorStore.getState().eraseAt(endFlow, zoom);
+        }
+
+        suppressNextPaneClickRef.current = true;
+        selectionStartRef.current = null;
+        selectionPathRef.current = [];
+        setSelectionPreview(null);
+        return;
+      }
+
       // Handle selection box/lasso completion
       if (selectionStartRef.current && (tool === "select-box" || tool === "select-lasso") && selectionPathRef.current.length > 1) {
         const selected: Array<{ id: string; kind: "place" | "transition" | "object" }> = [];
@@ -2205,17 +2322,11 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         }
       }
       if (nodeType === "objectFrame") {
-        const frame = getObjects(currentNet).find((o) => o.id === nodeId);
-        // A frame with no owner of its own is managed as a unit from here
-        // (moved, deleted, resized); a nested one is only visible because
-        // its actual owner is expanded, and editing it — deleting it,
-        // adding a new member inside it — is confined to its own canvas.
-        const local = frame?.objectId === undefined;
-        if (!isSimulating && tool === "delete") {
-          if (!local) return;
-          deleteElement({ id: nodeId, kind: "object" });
-          return;
-        }
+        // The eraser tool doesn't reach here at all: its own raw
+        // mousedown/mouseup handling (see onMouseUp) resolves clicks and
+        // sweeps through lib/eraser-geometry and suppresses this click, so
+        // its fixed-screen-pixel reach isn't limited to React Flow's own
+        // (zoom-shrinking) hit test.
         // The Arc tool clicking exactly on a collapsed frame's border port
         // reaches through to the hidden member that port stands for — the
         // frame itself is never a valid arc endpoint, only what's behind it.
@@ -2234,14 +2345,7 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       }
       const kind: "place" | "transition" = nodeType === "place" ? "place" : "transition";
       if (!isSimulating) {
-        if (tool === "delete") {
-          // A member of some object is visible here only because that
-          // object is expanded — removing it is confined to the object's
-          // own canvas, same as any other edit to its contents.
-          if (ownerOf(currentNet, nodeId) !== undefined) return;
-          deleteElement({ id: nodeId, kind });
-          return;
-        }
+        // The eraser tool never reaches onNodeClick; see the comment above.
         if (tool === "add-arc") {
           handleNodeClickForArcTool(nodeId);
           return;
@@ -2249,7 +2353,7 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       }
       setSelection([{ id: nodeId, kind }]);
     },
-    [tool, setSelection, handleNodeClickForArcTool, deleteElement, isSimulating],
+    [tool, setSelection, handleNodeClickForArcTool, isSimulating],
   );
 
   const onEdgeClick = useCallback(
@@ -2257,23 +2361,14 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       const currentNet = useEditorStore.getState().net;
       const isLink = getLinks(currentNet).some((l) => l.id === edge.id);
       const kind: "arc" | "link" = isLink ? "link" : "arc";
-      if (!isSimulating && tool === "delete") {
-        // A link crosses object boundaries by definition, so deleting one is
-        // never "editing a foreign object's internals" — it's removing a
-        // declared connection, same spirit as the port-connect feature. A
-        // plain arc's two ends always share one owner; if that owner is
-        // defined, the arc is wholly inside some object and only that
-        // object's own canvas may remove it.
-        if (kind === "arc") {
-          const arc = currentNet.arcs.find((a) => a.id === edge.id);
-          if (arc && ownerOf(currentNet, arc.source_id) !== undefined) return;
-        }
-        deleteElement({ id: edge.id, kind });
-        return;
-      }
+      // The eraser tool never reaches onEdgeClick either: its own raw
+      // mousedown/mouseup handling resolves it (see onMouseUp), so a thin
+      // arc gets the fixed-screen-pixel reach instead of React Flow's own
+      // interactionWidth, which shrinks in step with the arc's stroke as
+      // the view zooms out.
       setSelection([{ id: edge.id, kind }]);
     },
-    [tool, deleteElement, setSelection, isSimulating],
+    [setSelection],
   );
 
   const onSelectionChange = useCallback(
@@ -2566,6 +2661,30 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         ];
       }
 
+      if (target.kind === "link") {
+        // The connector (see connectorOf) is every placeFusion link sharing
+        // this one's pair of objects. "Split the whole connector" is only
+        // offered once that pair shares more than one place: on a pair
+        // sharing exactly one, it would do the same thing as "Split the
+        // shared place" under a second name.
+        const connector = connectorOf(state.net, target.id);
+        const items: CanvasContextMenuItem[] = [
+          {
+            label: t("canvas.contextMenu.splitSharedPlace"),
+            action: () => deleteElement({ id: target.id, kind: "link" }),
+            danger: true,
+          },
+        ];
+        if (connector.length > 1) {
+          items.push({
+            label: t("canvas.contextMenu.splitConnector", { count: connector.length }),
+            action: () => splitConnector(target.id),
+            danger: true,
+          });
+        }
+        return items;
+      }
+
       const hasNodeSelection = state.selection.some(
         (r) => r.kind === "place" || r.kind === "transition" || r.kind === "object",
       );
@@ -2607,6 +2726,7 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       ungroupObject,
       deleteObject,
       deleteElement,
+      splitConnector,
     ],
   );
 
@@ -2632,6 +2752,21 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
       if (nodeId && getObjects(currentNet).some((o) => o.id === nodeId)) {
         setSelection([{ id: nodeId, kind: "object" }]);
         setContextMenu({ ...point, target: { kind: "frame", id: nodeId } });
+        return;
+      }
+
+      // React Flow renders an edge as <g class="react-flow__edge" data-id="…">,
+      // the same attribute the walk above already follows for nodes, so a
+      // right-click that lands on the tie itself resolves the same way. Only
+      // a placeFusion link gets its own menu (the connector-split commands);
+      // any other link id, and every plain arc id, falls through unchanged.
+      const link = nodeId ? getLinks(currentNet).find((l) => l.id === nodeId) : undefined;
+      if (nodeId && link?.type === "placeFusion") {
+        const alreadySelected = useEditorStore
+          .getState()
+          .selection.some((r) => r.id === nodeId);
+        if (!alreadySelected) setSelection([{ id: nodeId, kind: "link" }]);
+        setContextMenu({ ...point, target: { kind: "link", id: nodeId } });
         return;
       }
 

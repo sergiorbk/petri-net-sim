@@ -8,7 +8,11 @@ see `_matches`) instead of relying on a pre-parsed object's own keys, which
 never carried a namespace to begin with. Every warning code, every hard
 failure's exact text, every coordinate/toolspecific/arc-kind/nesting rule
 mirrors pnml-import.ts function-for-function; see that file's own comments
-for the reasoning behind each rule, not repeated here.
+for the reasoning behind each rule, not repeated here. One exception:
+`_filter_place_fusion_links` also drops a placeFusion link that breaks one
+of `ComposedModel.place_fusion_rejection`'s rules (a cycle, a place copying
+two masters, a pair linked both ways) and warns about it -- the desktop
+editor's own answer to the same document, not yet ported to pnml-import.ts.
 
 Output shape: (net_data, warnings). `net_data` is the SAME frontend-shape
 dict the phase 2 converter (composed_convert.py) already reads and writes:
@@ -17,8 +21,9 @@ composed document (present, possibly empty, only when the document actually
 took the composed path -- a flat document's net_data carries neither key,
 matching `PetriNetData.objects?`/`links?` being absent for "today's flat
 net"). `warnings` is a list of `{"code": ..., "message": ...}` dicts, one of
-the same six codes pnml-import.ts uses: invalid-id, duplicate-id,
-dangling-ref, cross-page-arc, bad-number, invalid-value.
+the seven codes in `WARNING_CODES`: the six pnml-import.ts uses (invalid-id,
+duplicate-id, dangling-ref, cross-page-arc, bad-number, invalid-value) plus
+this module's own dropped-link.
 
 Two hard failures only, both raised as `ValueError` with the frontend's own
 text: a document with no `<pnml>` root, or a `<pnml>` with no `<net>`.
@@ -35,6 +40,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
+from src.domain.composed import ComposedModel
 from src.services.petri.exporter.geometry import PLACE_H, PLACE_W, TRANS_H, TRANS_W
 from src.services.petri.exporter.invariants import NCNAME_RE
 from src.services.petri.exporter.toolspecific import TOOL_PETRI_NET_SIM
@@ -48,10 +54,12 @@ TOOL_PETRI_OBJ_MODEL = "PetriObjModel"
 
 _PNML_NS = "http://www.pnml.org/version-2009/grammar/pnml"
 
-#: The six warning codes pnml-import.ts emits. Kept as a plain tuple (not an
-#: Enum) since every warning this module produces is a plain {"code": ...,
-#: "message": ...} dict, matching the frontend-shape convention the rest of
-#: this net_data dict already follows.
+#: The six warning codes pnml-import.ts emits, plus "dropped-link" (backend-
+#: only for now: the desktop editor's own answer to a document declaring an
+#: illegal placeFusion -- see `_structural_links` -- has no frontend port
+#: yet). Kept as a plain tuple (not an Enum) since every warning this module
+#: produces is a plain {"code": ..., "message": ...} dict, matching the
+#: frontend-shape convention the rest of this net_data dict already follows.
 WARNING_CODES = (
     "invalid-id",
     "duplicate-id",
@@ -59,6 +67,7 @@ WARNING_CODES = (
     "cross-page-arc",
     "bad-number",
     "invalid-value",
+    "dropped-link",
 )
 
 WarnFn = Callable[[str, str], None]
@@ -718,7 +727,23 @@ def _structural_links(
     warn: WarnFn,
 ) -> Tuple[List[dict], Set[str]]:
     """The links the document's structure states -- see pnml-import.ts's
-    own docstring (mirrors ReferenceNodeIndex)."""
+    own docstring (mirrors ReferenceNodeIndex).
+
+    Every placeFusion link this produces is well-formed by construction and
+    never needs `ComposedModel.place_fusion_rejection`'s rules checked
+    against it here: `resolve()` below always walks a reference chain
+    through to a genuinely real (non-reference) node, so a structural
+    fusion's target is always a real `<place>`, never another copy -- rules
+    3/4 (a copy of two masters, a cycle of copies) need a "master" that is
+    ITSELF also a copy, which this resolution can never produce, and rule 2
+    (the same pair linked twice) needs the same SOURCE id to recur, which
+    can't happen either, since each `<referencePlace>` element is exactly
+    one source. A document that violates one of these rules can only do so
+    with the OLDER, position-addressed `<petriObjectLinks>` declarations
+    that bypass reference nodes entirely -- see `_filter_place_fusion_links`,
+    which both paths' output passes through before this function's caller
+    returns it.
+    """
 
     def resolve(start: _DocNode) -> Optional[_DocNode]:
         current: Optional[_DocNode] = start
@@ -925,6 +950,75 @@ def _declared_links(
             "informational": _attr(raw, "informational", "false") == "true",
         })
     return links
+
+
+def _filter_place_fusion_links(
+    links: List[dict],
+    place_ids_by_page: List[List[str]],
+    places: List[dict],
+    warn: WarnFn,
+) -> List[dict]:
+    """Drop any placeFusion link -- structural or legacy-declared -- that
+    breaks one of `ComposedModel.place_fusion_rejection`'s rules (desktop
+    #62/port-spec section 2): the document still opens, but a link that
+    fails is DROPPED and the reason reported alongside this module's other
+    warnings, exactly like the desktop editor's own answer to a document
+    it did not write.
+
+    Runs over `links` already in DOCUMENT ORDER (structural links precede
+    whatever `_merge_links` layers from the declaration, and within either
+    source the order is the order each was read off the page/toolspecific
+    block), so `accepted` at the point any one fusion link is checked is
+    exactly "every fusion link stated earlier in the document" -- of a
+    contradictory set, the first one stated is the one that stands, the
+    same reading `ComposedModel.validate()` gives an already-built model.
+
+    Both kinds of placeFusion link pass through here, but they can not
+    actually break the same rules: a STRUCTURAL fusion (one `_structural_
+    links` read off a `<referencePlace>`) can only ever break rule 5 (same
+    object) -- see that function's own docstring for why its `resolve()`
+    step, which always walks a reference chain through to a genuinely real
+    place, leaves no way to construct the "copy of two masters" or "cycle
+    of copies" shapes rules 2-4 refuse. A document's OLDER, position-
+    addressed `<petriObjectLinks>` declarations have no such resolution
+    step, so a hand-authored or foreign-tool document using them (no
+    `<referencePlace>` anywhere -- see `_merge_links`'s `conformant` gate)
+    can state any of the five violations directly; this is the one place
+    either kind is caught, since both arrive here through the same list.
+    """
+    page_of: Dict[str, int] = {
+        elid: page for page, ids in enumerate(place_ids_by_page) for elid in ids
+    }
+    name_of: Dict[str, str] = {p["id"]: p["name"] for p in places}
+
+    def slot(elid: str) -> Tuple[int, str]:
+        # -1 for an id this document never placed on any page (should not
+        # happen: _declared_links already checked kind_of == "place" for
+        # both sides of a placeFusion before it ever reaches here) --
+        # never equal to a real page index, so it only ever prevents a
+        # false "same object" match, never causes one.
+        return page_of.get(elid, -1), elid
+
+    accepted: List[Tuple[Tuple[int, str], Tuple[int, str]]] = []
+    kept: List[dict] = []
+    for link in links:
+        if link["type"] != "placeFusion":
+            kept.append(link)
+            continue
+        source_slot = slot(link["sourceId"])
+        target_slot = slot(link["targetId"])
+        reason = ComposedModel.place_fusion_rejection(accepted, source_slot, target_slot)
+        if reason is not None:
+            warn(
+                "dropped-link",
+                f"Dropped the link "
+                f"{_describe('Place', link['targetId'], name_of.get(link['targetId'], ''))} = "
+                f"{_describe('Place', link['sourceId'], name_of.get(link['sourceId'], ''))}: {reason}",
+            )
+            continue
+        accepted.append((source_slot, target_slot))
+        kept.append(link)
+    return kept
 
 
 def _merge_links(structural: List[dict], declared: List[dict], conformant: bool) -> List[dict]:
@@ -1211,6 +1305,7 @@ def _parse_composed_pnml(net: ET.Element, name: str, registry: _IdRegistry, warn
 
     declared = _declared_links(net, place_ids_by_page, transition_ids_by_page, registry, warn)
     merged = _merge_links(structural_links, declared, conformant)
+    merged = _filter_place_fusion_links(merged, place_ids_by_page, places, warn)
     links = [{"id": f"link_{i}", **draft} for i, draft in enumerate(merged)]
 
     return {

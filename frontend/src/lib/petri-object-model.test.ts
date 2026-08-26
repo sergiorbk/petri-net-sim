@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { ObjectFrame, ObjectLink, PetriNetData, PetriTransition } from "@/types/petri";
 import {
   cloneElements,
+  connectorOf,
+  connectorsOf,
   fusionGroupsByPlace,
   isLocalToNet,
   objectAsGroup,
   reconcileArcsForNewMembership,
   reconcileLinksForNewMembership,
+  rejectionForFusion,
   resolveFusionMarking,
   resolveObjectBand,
   synthesizePlaceToTransitionFusion,
@@ -59,20 +62,37 @@ describe("fusionGroupsByPlace", () => {
     expect(fusionGroupsByPlace(netWith([])).size).toBe(0);
   });
 
-  it("groups the two places a single fusion joins", () => {
+  it("groups the two places a single fusion joins, with the target (master) as root", () => {
     const groups = fusionGroupsByPlace(netWith([fusion("l1", "p1", "p2")]));
     expect(groups.get("p1")!.label).toBe("A");
     expect(groups.get("p2")!.label).toBe("A");
     expect(groups.get("p1")!.members.sort()).toEqual(["p1", "p2"]);
+    expect(groups.get("p1")!.root).toBe("p2");
+    expect(groups.get("p2")!.root).toBe("p2");
     expect(groups.has("p3")).toBe(false);
   });
 
-  it("follows fusion transitively — A=B and B=C makes all three one place", () => {
+  it("follows fusion transitively: A=B and B=C makes all three one place, rooted at the chain's top", () => {
+    // p1 copies p2, p2 copies p3; p3 is never a source, so it's the root
+    // every member's marking ultimately traces back to.
     const groups = fusionGroupsByPlace(
       netWith([fusion("l1", "p1", "p2"), fusion("l2", "p2", "p3")]),
     );
     expect(groups.get("p1")!.members.sort()).toEqual(["p1", "p2", "p3"]);
     expect(groups.get("p3")!.label).toBe("A");
+    expect(groups.get("p1")!.root).toBe("p3");
+    expect(groups.get("p2")!.root).toBe("p3");
+    expect(groups.get("p3")!.root).toBe("p3");
+  });
+
+  it("a fan (several copies of the same master) is rooted at the shared master", () => {
+    // p1 and p2 both copy p3 directly (p3 repeated by two copies at once).
+    const groups = fusionGroupsByPlace(
+      netWith([fusion("l1", "p1", "p3"), fusion("l2", "p2", "p3")]),
+    );
+    expect(groups.get("p1")!.members.sort()).toEqual(["p1", "p2", "p3"]);
+    expect(groups.get("p1")!.root).toBe("p3");
+    expect(groups.get("p2")!.root).toBe("p3");
   });
 
   it("names separate groups apart", () => {
@@ -90,6 +110,86 @@ describe("fusionGroupsByPlace", () => {
       ]),
     );
     expect(groups.size).toBe(0);
+  });
+});
+
+describe("connectorOf / connectorsOf", () => {
+  // Two Petri-objects (oa, ob) each contributing three places, a third
+  // object (oc) with one more, and two free places belonging to no object.
+  function connectorNet(links: ObjectLink[]): PetriNetData {
+    return {
+      name: "n",
+      places: [
+        place("p1", "oa"),
+        place("p2", "oa"),
+        place("p3", "oa"),
+        place("p4", "ob"),
+        place("p5", "ob"),
+        place("p6", "ob"),
+        place("p7", "oc"),
+        place("free1"),
+        place("free2"),
+      ],
+      transitions: [],
+      arcs: [],
+      links,
+    };
+  }
+
+  it("bundles every link between the same pair of objects into one connector, the queried link included", () => {
+    const net = connectorNet([
+      fusion("l1", "p1", "p4"),
+      fusion("l2", "p2", "p5"),
+      fusion("l3", "p3", "p6"),
+    ]);
+    expect(connectorOf(net, "l2").map((l) => l.id)).toEqual(["l1", "l2", "l3"]);
+  });
+
+  it("keeps a link to a third object out of a different pair's connector", () => {
+    const net = connectorNet([
+      fusion("l1", "p1", "p4"), // oa <-> ob
+      fusion("l2", "p2", "p5"), // oa <-> ob
+      fusion("l3", "p7", "p1"), // oc <-> oa, a different pair
+    ]);
+    expect(connectorOf(net, "l1").map((l) => l.id)).toEqual(["l1", "l2"]);
+    expect(connectorOf(net, "l3").map((l) => l.id)).toEqual(["l3"]);
+  });
+
+  it("a link with a free end is a connector of its own, even alongside other links", () => {
+    const net = connectorNet([fusion("l1", "p1", "p4"), fusion("l2", "free1", "free2")]);
+    expect(connectorOf(net, "l2").map((l) => l.id)).toEqual(["l2"]);
+  });
+
+  it("returns the connector in declaration order regardless of which member was queried", () => {
+    const net = connectorNet([
+      fusion("l1", "p1", "p4"),
+      fusion("l2", "p2", "p5"),
+      fusion("l3", "p3", "p6"),
+    ]);
+    // Querying the LAST-declared member still comes back first-declared-first.
+    expect(connectorOf(net, "l3").map((l) => l.id)).toEqual(["l1", "l2", "l3"]);
+  });
+
+  it("has no connector for an id that isn't a placeFusion link", () => {
+    const net = connectorNet([
+      { id: "l1", type: "placeToTransition", sourceId: "p1", targetId: "t1", quantity: 1 },
+    ]);
+    expect(connectorOf(net, "l1")).toEqual([]);
+    expect(connectorOf(net, "does-not-exist")).toEqual([]);
+  });
+
+  it("connectorsOf groups the whole net into its connectors, one entry per pair plus one per free-ended link", () => {
+    const net = connectorNet([
+      fusion("l1", "p1", "p4"), // oa <-> ob, connector 1
+      fusion("l2", "p2", "p5"), // oa <-> ob, connector 1
+      fusion("l3", "p7", "p1"), // oc <-> oa, connector 2
+      fusion("l4", "free1", "free2"), // free ends, connector of its own
+    ]);
+    expect(connectorsOf(net).map((c) => c.map((l) => l.id))).toEqual([
+      ["l1", "l2"],
+      ["l3"],
+      ["l4"],
+    ]);
   });
 });
 
@@ -113,6 +213,84 @@ describe("resolveFusionMarking", () => {
 
   it("returns undefined when neither half is in the snapshot at all", () => {
     expect(resolveFusionMarking(groups, {}, "p1")).toBeUndefined();
+  });
+
+  it("prefers the ROOT's marking over a stale entry for the queried place itself", () => {
+    // A 3-member chain: p1 copies p2, p2 copies p3 (root). A snapshot that
+    // (however it happened) names both p1 and the root with different counts
+    // must resolve to the root's, not to p1's own entry just because p1 is
+    // what was asked about, which is the "arbitrary member" bug this fixes.
+    const chain = fusionGroupsByPlace(
+      netWith([fusion("l1", "p1", "p2"), fusion("l2", "p2", "p3")]),
+    );
+    expect(resolveFusionMarking(chain, { p1: 9, p3: 7 }, "p1")).toBe(7);
+  });
+});
+
+describe("rejectionForFusion", () => {
+  function netOf(
+    places: ReturnType<typeof place>[],
+    links: ObjectLink[],
+    objects: ObjectFrame[] = [],
+  ): PetriNetData {
+    return { name: "n", places, transitions: [], objects, arcs: [], links };
+  }
+
+  it("refuses linking a place to itself", () => {
+    const net = netOf([place("p1")], []);
+    expect(rejectionForFusion(net, "p1", "p1")).toBe("selfLink");
+  });
+
+  it("refuses a pair that's already linked, from either direction", () => {
+    const net = netOf([place("p1"), place("p2")], [fusion("l1", "p1", "p2")]);
+    expect(rejectionForFusion(net, "p1", "p2")).toBe("alreadyLinked");
+    expect(rejectionForFusion(net, "p2", "p1")).toBe("alreadyLinked");
+  });
+
+  it("refuses a second master for the same copy", () => {
+    const net = netOf(
+      [place("p1"), place("p2"), place("p3")],
+      [fusion("l1", "p1", "p2")], // p1 already copies p2
+    );
+    expect(rejectionForFusion(net, "p1", "p3")).toBe("copyAlreadyLinked");
+  });
+
+  // This is the test that fails against the pre-fix implementation: the old
+  // addObjectLink treated ANY existing fusion membership on either endpoint
+  // as disqualifying (strict 1-to-1), so it rejected this exact case.
+  it("allows a fan (several copies of the same master), the desktop's core change from strict 1-to-1", () => {
+    const net = netOf(
+      [place("p1"), place("p2"), place("p3")],
+      [fusion("l1", "p1", "p3")], // p1 already copies p3
+    );
+    expect(rejectionForFusion(net, "p2", "p3")).toBeNull(); // p2 copying p3 too is fine
+  });
+
+  it("refuses a link that would close a loop", () => {
+    const net = netOf(
+      [place("p1"), place("p2"), place("p3")],
+      [fusion("l1", "p1", "p2"), fusion("l2", "p2", "p3")], // p1 -> p2 -> p3
+    );
+    expect(rejectionForFusion(net, "p3", "p1")).toBe("wouldCreateLoop");
+  });
+
+  it("allows two places with no object at all: undefined is not 'the same object'", () => {
+    const net = netOf([place("p1"), place("p2")], []);
+    expect(rejectionForFusion(net, "p1", "p2")).toBeNull();
+  });
+
+  it("refuses two places that belong to the same object", () => {
+    const net = netOf([place("p1", "o1"), place("p2", "o1")], [], [frame("o1")]);
+    expect(rejectionForFusion(net, "p1", "p2")).toBe("sameObject");
+  });
+
+  it("allows two places in different objects", () => {
+    const net = netOf(
+      [place("p1", "o1"), place("p2", "o2")],
+      [],
+      [frame("o1"), frame("o2")],
+    );
+    expect(rejectionForFusion(net, "p1", "p2")).toBeNull();
   });
 });
 
@@ -175,7 +353,7 @@ describe("synthesizePlaceToTransitionFusion", () => {
     expect(next.places).toHaveLength(2);
     const proxy = next.places.find((p) => p.id !== "p1")!;
     expect(proxy.objectId).toBe("o2");
-    expect(proxy.tokens).toBe(5); // adopts the source place's marking, same as addObjectLink's own master rule
+    expect(proxy.tokens).toBe(5); // adopts the source place's marking, same as addObjectLink's own root rule
 
     expect(next.arcs).toHaveLength(1);
     expect(next.arcs[0].source_id).toBe(proxy.id);
@@ -183,10 +361,14 @@ describe("synthesizePlaceToTransitionFusion", () => {
     expect(next.arcs[0].arc_type).toBe("NORMAL");
     expect(next.arcs[0].weight).toBe(1);
 
+    // The proxy is the COPY, p1 is the MASTER (it holds the real marking and
+    // must stay the survivor a PNML export keeps as a real <place>; see
+    // synthesizePlaceToTransitionFusion's docstring), so storage direction
+    // puts the proxy as sourceId and p1 as targetId, not the other way round.
     const link = next.links!.find((l) => l.id === linkId)!;
     expect(link.type).toBe("placeFusion");
-    expect(link.sourceId).toBe("p1");
-    expect(link.targetId).toBe(proxy.id);
+    expect(link.sourceId).toBe(proxy.id);
+    expect(link.targetId).toBe("p1");
   });
 
   it("honors quantity and informational options on the synthesized arc", () => {
@@ -199,11 +381,16 @@ describe("synthesizePlaceToTransitionFusion", () => {
     expect(result!.net.arcs[0].arc_type).toBe("READ");
   });
 
-  it("returns null when the source place already belongs to a fusion group", () => {
+  it("still synthesizes when the source place already belongs to a fusion group: fan-out is legal now", () => {
+    // The desktop's core change from this app's old strict 1-to-1 rule: p1
+    // already being a master (or a copy) elsewhere is no longer a reason to
+    // refuse a fresh, brand-new proxy fusing back to it too.
     const net = baseNet();
     net.places.push(place("p2", "o1"));
-    net.links = [fusion("l1", "p1", "p2")];
-    expect(synthesizePlaceToTransitionFusion(net, "p1", "t1")).toBeNull();
+    net.links = [fusion("l1", "p2", "p1")]; // p2 already copies p1
+    const result = synthesizePlaceToTransitionFusion(net, "p1", "t1");
+    expect(result).not.toBeNull();
+    expect(result!.net.links).toHaveLength(2);
   });
 
   it("returns null when the transition is free — there is no object to synthesize a proxy place inside", () => {
@@ -258,7 +445,10 @@ describe("reconcileArcsForNewMembership", () => {
     const links = result.links!;
     expect(links).toHaveLength(1);
     expect(links[0].type).toBe("placeFusion");
-    expect(links[0].sourceId).toBe("p1");
+    // p1 is the master (real place, holds the marking); the synthesized
+    // proxy is the copy, so it's the link's sourceId, not p1.
+    expect(links[0].sourceId).not.toBe("p1");
+    expect(links[0].targetId).toBe("p1");
   });
 
   it("still converts a transition-sourced boundary-crossing arc into a transitionToPlace link, unaffected by placeToTransition's retirement", () => {
@@ -280,10 +470,10 @@ describe("reconcileArcsForNewMembership", () => {
     expect(links[0].targetId).toBe("p1");
   });
 
-  it("falls back to a raw placeToTransition link when the source place is already fused elsewhere", () => {
-    // A genuine edge case: synthesis can't fuse p1 a second time, so the
-    // connection is kept as the old (now validate()-rejected) link rather
-    // than silently vanishing — the user resolves the clash by hand.
+  it("still synthesizes a fusion even when the source place is already fused elsewhere: fan-out is legal now", () => {
+    // p1 already repeats p2 (an earlier fusion), but that's no longer a
+    // reason synthesis refuses: one master may be repeated by any number of
+    // copies, so p1 can happily pick up a second, brand-new copy too.
     const net: PetriNetData = {
       name: "n",
       places: [place("p1"), place("p2", "o2")],
@@ -294,13 +484,35 @@ describe("reconcileArcsForNewMembership", () => {
     };
     const result = reconcileArcsForNewMembership(net, new Set(["p1"]));
 
+    expect(result.arcs).toHaveLength(1); // the synthesized local arc
+    const links = result.links!;
+    expect(links).toHaveLength(2); // the pre-existing fusion, plus the new one
+    const newLink = links.find((l) => l.id !== "l1")!;
+    expect(newLink.type).toBe("placeFusion");
+    expect(newLink.targetId).toBe("p1"); // p1 stays master of both
+  });
+
+  it("falls back to a raw placeToTransition link when the transition is free: no object to synthesize a proxy inside", () => {
+    // A genuine remaining edge case: a free transition has nowhere for
+    // synthesizePlaceToTransitionFusion to build its local proxy place, so
+    // the connection is kept as the old (now validate()-rejected) link
+    // rather than silently vanishing; the user resolves it by hand.
+    const net: PetriNetData = {
+      name: "n",
+      places: [place("p1", "o1")],
+      transitions: [transition("t1")], // free
+      objects: [frame("o1")],
+      arcs: [{ id: "a1", source_id: "p1", target_id: "t1", weight: 1, arc_type: "NORMAL" }],
+      links: [],
+    };
+    const result = reconcileArcsForNewMembership(net, new Set(["t1"]));
+
     expect(result.arcs).toHaveLength(0);
     const links = result.links!;
-    expect(links).toHaveLength(2);
-    const newLink = links.find((l) => l.id !== "l1")!;
-    expect(newLink.type).toBe("placeToTransition");
-    expect(newLink.sourceId).toBe("p1");
-    expect(newLink.targetId).toBe("t1");
+    expect(links).toHaveLength(1);
+    expect(links[0].type).toBe("placeToTransition");
+    expect(links[0].sourceId).toBe("p1");
+    expect(links[0].targetId).toBe("t1");
   });
 });
 

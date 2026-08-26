@@ -284,6 +284,19 @@ def _elect_shared_places(model: ComposedModel) -> Dict[Tuple[int, int], Tuple[in
     source's root at the target's root reproduces that exactly, including for
     chains and for links that merely restate a group that already exists.
 
+    A fan (desktop #61: one master, N copies pointing at it) is not a special
+    case here, it falls out of the general rule: `ComposedModel.validate()`'s
+    `place_fusion_rejection` (`domain/composed/model.py`) already guarantees,
+    for any model that reaches this function, that every place is the SOURCE
+    (the copy) of at most one link and that no cycle exists. That makes every
+    fusion component a TREE whose edges all point one way, copy -> master, so
+    each component has exactly one node with no outgoing edge (the master,
+    which every union below roots at), and it is always that master the
+    union-find elects, whether the group has one copy or a hundred sharing it.
+    The union-find itself does not need to know any of this; it is correct by
+    construction for any input, this docstring just names why the fan case in
+    particular can never surprise it.
+
     :return: (object index, place index) -> the surviving slot, for every member
         that is NOT itself the survivor. A slot absent from the map is emitted
         as an ordinary place.

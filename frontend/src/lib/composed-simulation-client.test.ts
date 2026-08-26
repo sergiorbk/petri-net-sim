@@ -130,4 +130,30 @@ describe("buildComposedRequest heals links whose endpoints share one owner", () 
     const a = body.objects.find((o) => o.name === "A")!;
     expect(a.net_data.arcs.filter((arc) => arc.source_id === "tA" && arc.target_id === "pB")).toHaveLength(1);
   });
+
+  it("drops a fusion between two places belonging to no object, warning about it", () => {
+    // Rule 5's free-to-free carve-out (rejectionForFusion, petri-object-model.ts)
+    // lets the editor draw this link since neither end has a DEFINED owner,
+    // but the free-elements bucket is one composed object here, the same as
+    // the desktop's implicit "everything free is one object" folding, so the
+    // link still has no structural form and the simulation payload must not
+    // carry it either. This is the same drop pnml-export-composed.ts reports
+    // when building the document; the two must agree.
+    const net: PetriNetData = {
+      name: "FreeFusion",
+      places: [place("p1"), place("p2")],
+      transitions: [],
+      arcs: [],
+      links: [{ id: "l1", type: "placeFusion", sourceId: "p2", targetId: "p1", quantity: 1 }],
+    };
+
+    const warnings: string[] = [];
+    const body = buildComposedRequest(net, { onWarning: (m) => warnings.push(m) })!;
+
+    expect(body.links).toHaveLength(0);
+    expect(warnings).toEqual([
+      'Dropped the link "P1" (id "p1") = "P2" (id "p2"): both places belong to the same ' +
+        "Petri-object, so linking them would have it repeat itself.",
+    ]);
+  });
 });

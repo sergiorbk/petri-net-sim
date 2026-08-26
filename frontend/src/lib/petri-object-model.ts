@@ -502,6 +502,15 @@ export interface FusionGroup {
   label: string;
   /** Every place id in the group, including the one this entry is keyed by. */
   members: string[];
+  /**
+   * The member every other one in the group ultimately repeats: the single
+   * member that is never a placeFusion link's sourceId. rejectionForFusion's
+   * rules 3 and 4 (one master per copy, no loops) guarantee a well-formed
+   * group has exactly one such member; a group loaded from somewhere that
+   * doesn't hold that invariant falls back to the group's first member so a
+   * corrupt input still resolves to *something* rather than throwing.
+   */
+  root: string;
 }
 
 /**
@@ -525,10 +534,15 @@ export function fusionGroupsByPlace(net: PetriNetData): Map<string, FusionGroup>
     }
   };
 
+  // A place that is a source of some link repeats another one, so it can
+  // never be the group's root: that's the sole member the walk below
+  // doesn't rule out.
+  const sourceIds = new Set<string>();
   for (const link of getLinks(net)) {
     if (link.type !== "placeFusion") continue;
     note(link.sourceId, link.targetId);
     note(link.targetId, link.sourceId);
+    sourceIds.add(link.sourceId);
   }
 
   const result = new Map<string, FusionGroup>();
@@ -550,12 +564,159 @@ export function fusionGroupsByPlace(net: PetriNetData): Map<string, FusionGroup>
       }
     }
 
-    const group: FusionGroup = { label: fusionGroupLabel(groupIndex), members };
+    const root = members.find((id) => !sourceIds.has(id)) ?? members[0];
+    const group: FusionGroup = { label: fusionGroupLabel(groupIndex), members, root };
     for (const id of members) result.set(id, group);
     groupIndex++;
   }
 
   return result;
+}
+
+/**
+ * The connector a placeFusion link belongs to: every placeFusion link joining
+ * the same pair of Petri-objects, in declaration order, including `linkId`
+ * itself (matches desktop PetriObjModelPaint's GraphCanvasModel.connectorOf).
+ * Two objects sharing three places are joined by one connector of three place
+ * identifications, not three unrelated links, and treating it as one thing is
+ * what lets the pair be reasoned about, and detached, as a unit.
+ *
+ * Derived, never stored: a connector is entirely determined by which objects
+ * the existing links run between, so a second record of it could only ever be
+ * a record that disagrees.
+ *
+ * A link with an end belonging to no object is a connector of its own. The
+ * concept joins two Petri-objects, and loose places are not one; bundling
+ * every loose link into a single "no-object" connector would be an artefact
+ * of saying null equals null.
+ *
+ * The connector is a "shared place" concept specifically: only placeFusion
+ * links participate, the same as on the desktop, which has no other kind of
+ * cross-object link. `linkId` naming something else (or nothing at all)
+ * yields an empty list, not a single-element fallback: such an id simply
+ * isn't part of any connector.
+ */
+export function connectorOf(net: PetriNetData, linkId: string): ObjectLink[] {
+  const fusionLinks = getLinks(net).filter((l) => l.type === "placeFusion");
+  const link = fusionLinks.find((l) => l.id === linkId);
+  if (!link) return [];
+
+  // sourceId is the copy ("joined"), targetId is the master, see
+  // rejectionForFusion's docstring for why the direction is load-bearing.
+  // A connector doesn't care which end is which, only which two objects the
+  // link spans, so both orderings of the pair are matched below.
+  const masterOwner = ownerOf(net, link.targetId);
+  const joinedOwner = ownerOf(net, link.sourceId);
+  if (masterOwner === undefined || joinedOwner === undefined) return [link];
+
+  return fusionLinks.filter((candidate) => {
+    const master = ownerOf(net, candidate.targetId);
+    const joined = ownerOf(net, candidate.sourceId);
+    return (
+      (master === masterOwner && joined === joinedOwner) ||
+      (master === joinedOwner && joined === masterOwner)
+    );
+  });
+}
+
+/**
+ * Every connector on this net, each as the list of links that make it up:
+ * one entry per pair of objects sharing at least one place, plus one entry
+ * per placeFusion link with an end outside any object. Declaration order
+ * throughout, matching the desktop's own GraphCanvasModel.connectors.
+ */
+export function connectorsOf(net: PetriNetData): ObjectLink[][] {
+  const fusionLinks = getLinks(net).filter((l) => l.type === "placeFusion");
+  const accountedFor = new Set<string>();
+  const found: ObjectLink[][] = [];
+  for (const link of fusionLinks) {
+    if (accountedFor.has(link.id)) continue;
+    const connector = connectorOf(net, link.id);
+    for (const l of connector) accountedFor.add(l.id);
+    found.push(connector);
+  }
+  return found;
+}
+
+export type FusionRejectionReason =
+  | "selfLink"
+  | "alreadyLinked"
+  | "copyAlreadyLinked"
+  | "wouldCreateLoop"
+  | "sameObject";
+
+/**
+ * Wording for each FusionRejectionReason, phrased to slot after a colon in a
+ * sentence ("Dropped the link X = Y: <reason>."), the shape a document- or
+ * export-time report needs. The editor's own toast (canvas.fusion.rejection.*
+ * in the locale files) says the identical thing as a full sentence, so a user
+ * sees the same explanation whether the rejection happened at their cursor,
+ * on opening a file, or on saving one.
+ */
+export const FUSION_REJECTION_REASON_TEXT: Record<FusionRejectionReason, string> = {
+  selfLink: "a place cannot be linked to itself",
+  alreadyLinked:
+    "these two places are already linked; a link in the opposite direction is not allowed either",
+  copyAlreadyLinked:
+    "that place already copies another one; a place can repeat a single source, otherwise there is no saying which marking it holds",
+  wouldCreateLoop: "that would make a loop of links, where each place copies the next",
+  sameObject: "both places belong to the same Petri-object, so linking them would have it repeat itself",
+};
+
+/**
+ * The single authority for whether a placeFusion link from `copyId` to
+ * `masterId` is allowed, in the order desktop PetriObjModelPaint's
+ * GraphCanvasModel.rejectionFor checks them. Both the editor gesture and a
+ * document being opened (pnml-import) consult this, so there is only ever
+ * one place that can disagree with itself about a link.
+ *
+ * A shared place is a directed reference, not an undirected merge: `copyId`
+ * is the place that repeats another, `masterId` is the one repeated, and it
+ * holds the marking (see addObjectLink). One master may be repeated by any
+ * number of copies (that fan is the desktop's headline change from this
+ * app's old strict 1-to-1 rule), but a copy may repeat only one master
+ * (rule 3), and chains of copies are fine as long as they never close a
+ * loop (rule 4).
+ */
+export function rejectionForFusion(
+  net: PetriNetData,
+  copyId: string,
+  masterId: string,
+): FusionRejectionReason | null {
+  if (copyId === masterId) return "selfLink";
+
+  const fusionLinks = getLinks(net).filter((l) => l.type === "placeFusion");
+
+  const alreadyLinked = fusionLinks.some(
+    (l) =>
+      (l.sourceId === copyId && l.targetId === masterId) ||
+      (l.sourceId === masterId && l.targetId === copyId),
+  );
+  if (alreadyLinked) return "alreadyLinked";
+
+  // A place can repeat a single source; otherwise there is no saying which
+  // marking it holds. This is what makes the fan legal in one direction
+  // only: masterId may already be plenty of OTHER links' target, that's
+  // the fan, but copyId itself may not already be repeating someone else.
+  if (fusionLinks.some((l) => l.sourceId === copyId)) return "copyAlreadyLinked";
+
+  // Walk up from masterId along each place's own source link (the link
+  // where it is the copy): if copyId turns up on that chain, this link
+  // would close a loop of "each place copies the next". Bounded by the
+  // link count so a corrupt document already on disk can't hang the walk.
+  const masterOfCopy = new Map(fusionLinks.map((l) => [l.sourceId, l.targetId]));
+  let current: string | undefined = masterOfCopy.get(masterId);
+  for (let steps = 0; current !== undefined && steps < fusionLinks.length; steps++) {
+    if (current === copyId) return "wouldCreateLoop";
+    current = masterOfCopy.get(current);
+  }
+
+  // Two places with no object at all are not "the same object": only a
+  // shared, DEFINED owner rules the link out.
+  const copyOwner = ownerOf(net, copyId);
+  if (copyOwner !== undefined && copyOwner === ownerOf(net, masterId)) return "sameObject";
+
+  return null;
 }
 
 /**
@@ -573,9 +734,14 @@ export function resolveFusionMarking(
   markings: Record<string, number>,
   placeId: string,
 ): number | undefined {
+  const group = fusionGroups.get(placeId);
+  // One place, one marking, and it's the ROOT master's, not whichever
+  // member the snapshot happens to name, and not this place's own entry
+  // just because it's the one asked about.
+  const rootMarking = group ? markings[group.root] : undefined;
+  if (rootMarking !== undefined) return rootMarking;
   const direct = markings[placeId];
   if (direct !== undefined) return direct;
-  const group = fusionGroups.get(placeId);
   if (!group) return undefined;
   for (const memberId of group.members) {
     const m = markings[memberId];
@@ -601,16 +767,28 @@ export function nextLinkId(existing: readonly { id: string }[]): string {
  * ComposedSimulationUnsupported error asks for it: never a direct
  * placeToTransition link, only placeFusion. A local place is synthesized
  * inside the transition's own object, wired to it with an ordinary local
- * arc, and fused back to the place the gesture actually started from — so
- * the transition ends up with exactly one input list, all of it local, and
- * nothing left for a second cross-object mechanism to duplicate.
+ * arc, and fused back to `placeId`, so the transition ends up with exactly
+ * one input list, all of it local, and nothing left for a second
+ * cross-object mechanism to duplicate.
  *
- * Returns null when the source place already belongs to a fusion group of
- * its own (this app's fusion is strictly 1-to-1, matching
- * PetriObjModelPaint's own fusionOf() guard — see addObjectLink) or when
- * either id doesn't resolve to what it should: a place, a transition owned
- * by some OTHER object than the place (a free transition has no object to
- * synthesize a proxy place inside).
+ * The proxy REPEATS placeId: placeId is the master (it holds the real,
+ * user-visible marking; the proxy is a purely technical stand-in that lets a
+ * local arc reach a foreign transition), so the link is stored copy -> master
+ * the same way any other placeFusion is: sourceId is the fresh proxy,
+ * targetId is placeId (see rejectionForFusion's docstring for why the
+ * direction isn't a free choice: the PNML exporter's electSharedPlaces
+ * makes the target the survivor, and placeId must stay the real `<place>`).
+ *
+ * No call to rejectionForFusion is needed here: the proxy is always a
+ * brand-new place that has never been anyone's copy or master before, its
+ * object already differs from placeId's own by construction (the check just
+ * above), and it therefore cannot fail any of the five rules. Unlike the
+ * old strict 1-to-1 rule this replaced, placeId already belonging to a
+ * fusion group of its own is no longer a reason to refuse.
+ *
+ * Returns null only when either id doesn't resolve to what it should: a
+ * place, a transition owned by some OTHER object than the place (a free
+ * transition has no object to synthesize a proxy place inside).
  */
 export function synthesizePlaceToTransitionFusion(
   net: PetriNetData,
@@ -622,7 +800,6 @@ export function synthesizePlaceToTransitionFusion(
   const transition = net.transitions.find((t) => t.id === transitionId);
   if (!place || !transition) return null;
   if (transition.objectId === undefined || transition.objectId === place.objectId) return null;
-  if (fusionGroupsByPlace(net).has(placeId)) return null;
 
   const proxyPlace: PetriPlace = {
     id: nextId("p", net.places),
@@ -645,8 +822,8 @@ export function synthesizePlaceToTransitionFusion(
   const link: ObjectLink = {
     id: linkId,
     type: "placeFusion",
-    sourceId: placeId,
-    targetId: proxyPlace.id,
+    sourceId: proxyPlace.id,
+    targetId: placeId,
     quantity: 1,
     informational: undefined,
   };
@@ -698,11 +875,14 @@ export function reconcileArcsForNewMembership(
         workingNet = synthesized.net;
         continue;
       }
-      // The source place is already fused with something else, so a fresh
-      // fusion can't be synthesized here either — fall back to the old raw
-      // link rather than lose the connection outright. Invalid per the
-      // backend's validate(), same as any other unresolved fusion clash;
-      // the user resolves it by hand from the property inspector.
+      // synthesizePlaceToTransitionFusion only refuses when the transition
+      // itself is free (no object to build a local proxy place inside): a
+      // fusion already touching the source place is no longer a reason to
+      // refuse, now that one master may be repeated by any number of copies.
+      // Fall back to the old raw link rather than lose the connection
+      // outright. Invalid per the backend's validate(), same as any other
+      // unresolved boundary clash; the user resolves it by hand from the
+      // property inspector.
     }
 
     const type: ObjectLinkType = sourceIsPlace ? "placeToTransition" : "transitionToPlace";

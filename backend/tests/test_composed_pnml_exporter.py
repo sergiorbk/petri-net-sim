@@ -560,7 +560,21 @@ class TestComposedPNMLExporterInvariants:
         """§4/§6: PetriObjModel.wire() overwrites `sourcePlaces[slot]` on
         each apply, so replaying two fusions on the same source slot keeps
         only the LAST one structurally, the earlier one stays declared in
-        <petriObjectLinks> only, never doubling up the reference node."""
+        <petriObjectLinks> only, never doubling up the reference node.
+
+        This model is no longer reachable through anything that enforces
+        ComposedModel's own rules (desktop #61's rule 3: a place may be the
+        SOURCE/copy of at most one fusion link; object0's only place is
+        the source of both links below). `op_link_objects`/`session.add_link`
+        refuse the second link outright, and `validate()` flags the model
+        below as an assertion of that, in the same breath as building it.
+        This test still builds the model by direct construction, bypassing
+        both, to pin what the exporter itself does with input that reaches
+        it some other way (a hand-authored net_data document, say) despite
+        being invalid: union-find "last write wins" resilience, not a
+        behaviour anything should still be able to trigger through the
+        session or the agent tools.
+        """
         model = ComposedModel(name="M")
         a = PetriNet(name="A")
         pa = a.add_place("P1", place_id="pA")
@@ -596,6 +610,56 @@ class TestComposedPNMLExporterInvariants:
         links_block = root.find("pnml:net", NS).find("pnml:toolspecific", NS) \
             .find("pnml:petriObjectLinks", NS)
         assert len(links_block.findall("pnml:link", NS)) == 2  # both still declared
+
+        errors = model.validate()
+        assert any(
+            "already copies another one" in e for e in errors
+        ), "validate() should refuse this model under rule 3, even though export tolerates it"
+
+    def test_a_fan_of_three_copies_exports_as_three_reference_places_at_one_master(self, exporter):
+        """desktop #61: one master repeated by ANY number of copies is a
+        legal fusion group as long as every copy is the source of exactly
+        one link (rule 3) -- unlike the previous test, this one is a model
+        `ComposedModel.validate()` accepts. Three copies, three
+        <referencePlace> elements, all with ref="pMaster", and the master
+        stays a real <place> carrying the marking."""
+        model = ComposedModel(name="Fan")
+        master = PetriNet(name="Master")
+        pm = master.add_place("P1", tokens=5, place_id="pMaster")
+        tm = master.add_transition("T1", transition_id="tMaster")
+        master.add_arc(pm.id, tm.id, arc_id="arcM1")
+        master.add_arc(tm.id, pm.id, arc_id="arcM2")
+        model.add_object(master, name="Master")
+
+        for i in range(1, 4):
+            copy = PetriNet(name=f"Copy{i}")
+            pc = copy.add_place("P1", tokens=0, place_id=f"pCopy{i}")
+            tc = copy.add_transition("T1", transition_id=f"tCopy{i}")
+            copy.add_arc(pc.id, tc.id, arc_id=f"arcC{i}1")
+            copy.add_arc(tc.id, pc.id, arc_id=f"arcC{i}2")
+            model.add_object(copy, name=f"Copy{i}")
+            model.add_link(
+                LinkType.PLACE_FUSION,
+                source_object=i, source_element=0,
+                target_object=0, target_element=0,
+            )
+        assert model.validate() == []
+
+        xml = exporter.export(model)
+        root = ET.fromstring(xml)
+        pages = root.find("pnml:net", NS).findall("pnml:page", NS)
+
+        master_page = pages[0]
+        assert len(master_page.findall("pnml:place", NS)) == 1
+        assert master_page.find("pnml:place", NS).get("id") == "pMaster"
+        assert master_page.find("pnml:place", NS).find("pnml:initialMarking/pnml:text", NS).text == "5"
+        assert len(master_page.findall("pnml:referencePlace", NS)) == 0
+
+        for copy_page in pages[1:]:
+            refs = copy_page.findall("pnml:referencePlace", NS)
+            assert len(refs) == 1
+            assert refs[0].get("ref") == "pMaster"
+            assert len(copy_page.findall("pnml:place", NS)) == 0
 
     def test_two_objects_with_colliding_ids_get_namespaced(self, exporter):
         """Two objects built from the same net_data (e.g. the same session

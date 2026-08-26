@@ -1,5 +1,5 @@
 import type { ObjectLinkType, PetriNetData } from "@/types/petri";
-import { getLinks, getObjects, ownerOf } from "@/lib/petri-object-model";
+import { FUSION_REJECTION_REASON_TEXT, getLinks, getObjects, ownerOf } from "@/lib/petri-object-model";
 import { fetchWithAuth } from "@/lib/api-client";
 import type { SimulationStreamCallbacks } from "@/lib/simulation-client";
 import { consumeSimulationStream } from "@/lib/simulation-client";
@@ -107,6 +107,19 @@ export interface ComposedRequestOptions {
    * a simulation request keeps containing only objects the engine can run.
    */
   includeEmptyObjects?: boolean;
+  /**
+   * Called once for every placeFusion link dropped below because both ends
+   * resolve to the same composed object, the free-elements bucket included,
+   * which is one object here the same as it is on the desktop. Skipping is
+   * not silent: a user who drew the link has a right to know it says nothing.
+   */
+  onWarning?: (message: string) => void;
+}
+
+/** Names a place for a warning message, by its visible name when there is one, by its id otherwise. */
+function describePlace(net: PetriNetData, id: string): string {
+  const name = net.places.find((p) => p.id === id)?.name;
+  return name && name !== id ? `"${name}" (id "${id}")` : `id "${id}"`;
 }
 
 /**
@@ -131,6 +144,16 @@ export function buildComposedRequest(
   // itself" and is dropped. The net data is not touched — the editor heals
   // it on the next membership change; this keeps already-saved documents
   // simulating in the meantime.
+  //
+  // The free-elements bucket (FREE_OBJECT_INDEX_KEY) falls out of the same
+  // check for free: every place and transition with no objectId lands in it,
+  // so two free places fused to each other are, as far as this partition is
+  // concerned, one object linked to itself too: exactly the desktop's rule
+  // (GraphCanvasModel's canvas-to-model step folds every free element into
+  // one implicit object and skips a link whose two ends land in it). Rule 5
+  // (rejectionForFusion, petri-object-model.ts) had to let the editor draw
+  // that link since neither end has a DEFINED owner; this is where it turns
+  // out to have no structural form after all.
   const healedArcsByOwner = new Map<string, PetriNetData["arcs"]>();
   const sameOwnerLinkIds = new Set<string>();
   for (const link of getLinks(net)) {
@@ -138,7 +161,13 @@ export function buildComposedRequest(
     const targetOwner = ownerOf(net, link.targetId) ?? FREE_OBJECT_INDEX_KEY;
     if (sourceOwner !== targetOwner) continue;
     sameOwnerLinkIds.add(link.id);
-    if (link.type === "placeFusion") continue;
+    if (link.type === "placeFusion") {
+      options.onWarning?.(
+        `Dropped the link ${describePlace(net, link.targetId)} = ${describePlace(net, link.sourceId)}: ` +
+          `${FUSION_REJECTION_REASON_TEXT.sameObject}.`,
+      );
+      continue;
+    }
     const duplicate = net.arcs.some(
       (a) => a.source_id === link.sourceId && a.target_id === link.targetId,
     );
@@ -292,7 +321,7 @@ export async function streamComposedSimulation(
   callbacks: SimulationStreamCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  const body = buildComposedRequest(net);
+  const body = buildComposedRequest(net, { onWarning: callbacks.onWarning });
   if (!body) {
     callbacks.onError("This canvas has no Petri-objects to simulate.");
     return;

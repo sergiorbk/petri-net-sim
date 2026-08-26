@@ -1106,6 +1106,146 @@ class TestDeclaredLinksWrongEndpointKind:
         assert data.get("links", []) == []
 
 
+class TestPlaceFusionRulesOnImport:
+    """desktop #62/port-spec section 2: an imported document is held to the
+    same five placeFusion rules `ComposedModel.place_fusion_rejection`
+    enforces when a link is created in the editor (test_composed_model.py::
+    TestPlaceFusionRules). A link that breaks one is DROPPED, not a parse
+    failure -- the document still opens -- and the drop is reported
+    alongside this module's other warnings, in document order, so of a
+    contradictory set the FIRST one stated is the one that stands.
+    """
+
+    @staticmethod
+    def _page(index: int, name: str, place_id: str) -> str:
+        return f"""    <page id="object{index}">
+      <toolspecific tool="PetriObjModel" version="2.0">
+        <petriObject index="{index}" name="{name}" priority="0" x="{index * 200}" y="0" width="100" height="100"/>
+      </toolspecific>
+      <place id="{place_id}"><name><text>{place_id}</text></name></place>
+      <transition id="t{index}"><name><text>T{index}</text></name></transition>
+    </page>"""
+
+    @staticmethod
+    def _fusion_link(source: str, target: str) -> str:
+        # id-valued attributes alone are enough: _declared_links prefers
+        # them over sourceObject/sourceElement when both are given (see
+        # its own comment), so the position attributes are not needed here.
+        return f'<link type="placeFusion" sourceElementId="{source}" targetElementId="{target}"/>'
+
+    @classmethod
+    def _legacy_doc(cls, pages: list[str], links: list[str]) -> str:
+        """A pre-referencePlace (v2.0) document: `<petriObjectLinks>` is the
+        ONLY source of links, position/id-addressed directly, with none of
+        `_structural_links`'s resolve()-through-a-reference-chain collapsing
+        -- see `_filter_place_fusion_links`'s own docstring for why this is
+        the shape that can actually state a cycle or a dual-master copy;
+        a real (`<referencePlace>`-based) document's reference chain always
+        resolves straight through to a real place, which never leaves that
+        shape standing (test_a_well_formed_fan_of_three_copies below uses
+        that real shape instead, for the case it CAN produce)."""
+        body = "\n".join(pages)
+        links_body = "\n".join(links)
+        return f"""<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="net1" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Legacy</text></name>
+{body}
+    <toolspecific tool="PetriObjModel" version="2.0">
+      <petriObjectLinks>
+{links_body}
+      </petriObjectLinks>
+    </toolspecific>
+  </net>
+</pnml>"""
+
+    @staticmethod
+    def _fusions(data: dict) -> list[tuple[str, str]]:
+        return [(l["sourceId"], l["targetId"]) for l in data.get("links", []) if l["type"] == "placeFusion"]
+
+    def test_a_link_that_would_close_a_loop_is_dropped_and_the_rest_kept(self):
+        """B copies A, C copies B, and A copies C would close the loop --
+        the third link, stated last, is the one dropped."""
+        doc = self._legacy_doc(
+            pages=[self._page(0, "A", "pA"), self._page(1, "B", "pB"), self._page(2, "C", "pC")],
+            links=[
+                self._fusion_link("pB", "pA"),
+                self._fusion_link("pC", "pB"),
+                self._fusion_link("pA", "pC"),
+            ],
+        )
+        data, warnings = parse_pnml(doc)
+        assert self._fusions(data) == [("pB", "pA"), ("pC", "pB")]
+
+        dropped = [w for w in warnings if w["code"] == "dropped-link"]
+        assert len(dropped) == 1
+        assert "loop" in dropped[0]["message"]
+        assert "pA" in dropped[0]["message"]
+        assert "pC" in dropped[0]["message"]
+
+    def test_a_place_that_already_copies_one_master_cannot_copy_a_second(self):
+        """Two reference places naming the same copy: pA is declared as the
+        source of two separate fusions; the first (into pB) stands, the
+        second (into pC) is dropped."""
+        doc = self._legacy_doc(
+            pages=[self._page(0, "A", "pA"), self._page(1, "B", "pB"), self._page(2, "C", "pC")],
+            links=[
+                self._fusion_link("pA", "pB"),
+                self._fusion_link("pA", "pC"),
+            ],
+        )
+        data, warnings = parse_pnml(doc)
+        assert self._fusions(data) == [("pA", "pB")]
+
+        dropped = [w for w in warnings if w["code"] == "dropped-link"]
+        assert len(dropped) == 1
+        assert "already copies another one" in dropped[0]["message"]
+
+    def test_a_well_formed_fan_of_three_copies_imports_with_no_warnings(self):
+        """The positive case: ANY number of copies may point at the SAME
+        master. Read from real `<referencePlace>` structure, the shape an
+        actual export writes -- unlike the two tests above, which need the
+        legacy declared form to reach a rule the flattened reference chain
+        otherwise makes unreachable (see `_structural_links`'s own
+        docstring)."""
+        def reference_place(copy_id: str, master_id: str) -> str:
+            return f"""      <referencePlace id="{copy_id}" ref="{master_id}">
+        <name><text>{copy_id}</text></name>
+        <toolspecific tool="PetriObjModel" version="2.1">
+          <referenceRole>fusion</referenceRole>
+        </toolspecific>
+      </referencePlace>"""
+
+        master_page = """    <page id="object0">
+      <toolspecific tool="PetriObjModel" version="2.1">
+        <petriObject index="0" name="Master" priority="0" x="0" y="0" width="100" height="100"/>
+      </toolspecific>
+      <place id="pMaster"><name><text>Master</text></name><initialMarking><text>5</text></initialMarking></place>
+      <transition id="tMaster"><name><text>TMaster</text></name></transition>
+    </page>"""
+        copy_pages = "\n".join(
+            f"""    <page id="object{i}">
+      <toolspecific tool="PetriObjModel" version="2.1">
+        <petriObject index="{i}" name="Copy{i}" priority="0" x="{i * 200}" y="0" width="100" height="100"/>
+      </toolspecific>
+{reference_place(f"pCopy{i}", "pMaster")}
+      <transition id="t{i}"><name><text>T{i}</text></name></transition>
+    </page>"""
+            for i in (1, 2, 3)
+        )
+        xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<pnml xmlns="http://www.pnml.org/version-2009/grammar/pnml">
+  <net id="net1" type="http://www.pnml.org/version-2009/grammar/ptnet">
+    <name><text>Fan</text></name>
+{master_page}
+{copy_pages}
+  </net>
+</pnml>"""
+        data, warnings = parse_pnml(xml)
+        assert self._fusions(data) == [("pCopy1", "pMaster"), ("pCopy2", "pMaster"), ("pCopy3", "pMaster")]
+        assert warnings == []
+
+
 # ---------------------------------------------------------------------------
 # Soft validation: a file always opens if structurally possible, and every
 # place this reader had to reinterpret, remap or drop something instead of

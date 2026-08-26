@@ -15,6 +15,7 @@ import type { InstantiatedSubnet } from "@/lib/petri-object-instantiate";
 import {
   allNodeIds,
   cloneElements,
+  connectorOf,
   frameBoundsFor,
   fusionGroupsByPlace,
   getLinks,
@@ -27,11 +28,13 @@ import {
   ownerOf,
   reconcileArcsForNewMembership,
   reconcileLinksForNewMembership,
+  rejectionForFusion,
   synthesizePlaceToTransitionFusion,
   type ElementGroup,
 } from "@/lib/petri-object-model";
 import { nextId, nextLabel } from "@/lib/petri-ids";
 import { randomNetName } from "@/lib/random-net-name";
+import { eraserPick, eraserReachUnits, resolveEraserBand, type EraserHit } from "@/lib/eraser-geometry";
 
 export type EditorTool =
   | "select"
@@ -226,6 +229,15 @@ interface EditorState {
   ) => void;
   removeElementFromObject: (elementId: string) => void;
 
+  /**
+   * `sourceId`/`targetId` always mean STORAGE direction, the same as
+   * `ObjectLink` itself, never "which end the gesture started from". For
+   * placeFusion specifically that means sourceId is the COPY and targetId is
+   * the MASTER it repeats (see rejectionForFusion), so a caller that resolves
+   * a drawn connection (where the user drags FROM the place being repeated
+   * TO the place that copies it) must pass (copyId, masterId), i.e. the
+   * gesture's target first, not its own (source, target) order verbatim.
+   */
   addObjectLink: (
     type: ObjectLinkType,
     sourceId: string,
@@ -246,9 +258,33 @@ interface EditorState {
   ) => string | null;
   updateObjectLink: (id: string, patch: Partial<Omit<ObjectLink, "id" | "type">>) => void;
   deleteObjectLink: (id: string) => void;
+  /**
+   * "Split the whole connector": removes every placeFusion link of the pair
+   * `linkId` belongs to (see connectorOf) as ONE undo step. `deleteObjectLink`
+   * is "Split the shared place": just the one clicked; this is its
+   * whole-pair sibling, only meaningfully different when the connector holds
+   * more than one link.
+   */
+  splitConnector: (linkId: string) => void;
 
   deleteSelection: () => void;
   deleteElement: (ref: ElementRef) => void;
+
+  /**
+   * Eraser click: erases the nearest element within `zoom`'s fixed-screen-
+   * pixel reach of `point` (flow coordinates), skipping anything outside the
+   * active canvas's edit scope. A Petri-object goes whole, same as any other
+   * eraser hit.
+   */
+  eraseAt: (point: { x: number; y: number }, zoom: number) => void;
+  /**
+   * Eraser sweep: erases everything a band (flow coordinates) catches, in
+   * one undo step. Delegates to deleteSelection so the cascade (an object
+   * takes its members with it) and the edit-scope rule are the one
+   * implementation both the click and the sweep eraser share with the
+   * Delete key.
+   */
+  eraseInBand: (band: { minX: number; minY: number; maxX: number; maxY: number }) => void;
 }
 
 const DEFAULT_TRANSITION: Omit<PetriTransition, "id" | "name" | "graphics"> = {
@@ -1272,33 +1308,24 @@ export const useEditorStore = create<EditorState>()(
     if (type === "transitionToPlace" && !(sourceIsTransition && targetIsPlace)) return null;
     if (type === "placeToTransition" && !(sourceIsPlace && targetIsTransition)) return null;
 
-    // The whole point of a link is connecting two DIFFERENT objects.
-    if (ownerOf(net, sourceId) === ownerOf(net, targetId)) return null;
-
-    // A shared place is strictly 1-to-1 — a place already fused with someone
-    // else cannot also fuse with this one, matching PetriObjModelPaint's own
-    // fusionOf() guard. Everything else about fusionGroupsByPlace stays
-    // general (it still displays and tolerates a pre-existing multi-way group
-    // loaded from elsewhere); only creating a NEW one through this app's own
-    // UI is what's disallowed here.
-    if (type === "placeFusion") {
-      const existingGroups = fusionGroupsByPlace(net);
-      if (existingGroups.has(sourceId) || existingGroups.has(targetId)) return null;
-    }
-
     const links = getLinks(net);
-    const duplicate =
-      type === "placeFusion"
-        ? links.some(
-            (l) =>
-              l.type === "placeFusion" &&
-              ((l.sourceId === sourceId && l.targetId === targetId) ||
-                (l.sourceId === targetId && l.targetId === sourceId)),
-          )
-        : links.some(
-            (l) => l.type === type && l.sourceId === sourceId && l.targetId === targetId,
-          );
-    if (duplicate) return null;
+
+    if (type === "placeFusion") {
+      // sourceId is the copy, targetId is the master: rejectionForFusion is
+      // the one authority for all five desktop rules (self-link, duplicate in
+      // either direction, one master per copy, no loops, and same-object (the
+      // carve-out from this app's old strict 1-to-1 rule) only refuses two
+      // places that share a DEFINED owner, not two free ones).
+      if (rejectionForFusion(net, sourceId, targetId) !== null) return null;
+    } else {
+      // The whole point of a directional link is connecting two DIFFERENT
+      // objects; placeFusion earns its own same-object carve-out above.
+      if (ownerOf(net, sourceId) === ownerOf(net, targetId)) return null;
+      const duplicate = links.some(
+        (l) => l.type === type && l.sourceId === sourceId && l.targetId === targetId,
+      );
+      if (duplicate) return null;
+    }
 
     const id = nextLinkId(links);
     const link: ObjectLink = {
@@ -1311,22 +1338,23 @@ export const useEditorStore = create<EditorState>()(
     };
     const linkedNet: PetriNetData = { ...net, links: [...links, link] };
 
-    // Joining a fusion adopts the MASTER's count — the master is the side the
-    // gesture started from, i.e. sourceId (the caller always passes the
-    // first-touched element as sourceId; see EditorCanvas's resolveConnection).
-    // Either side may already belong to its own fusion group, so the whole
-    // merged group — not just the two places just linked — ends up at the
-    // master's count. Folding this into the same set() as the link creation
-    // keeps "join + adopt marking" one undoable step.
+    // Joining a fusion adopts the ROOT MASTER's count. targetId is the master
+    // of the link just drawn, but that master can itself already be mid-chain
+    // (a copy of something further up), so the newly merged group takes
+    // whichever member fusionGroupsByPlace resolves as its root, never
+    // targetId blindly, and every member, not just the two just linked, ends
+    // up there. Folding this into the same set() as the link creation keeps
+    // "join + adopt marking" one undoable step.
     let finalNet = linkedNet;
     if (type === "placeFusion") {
-      const masterTokens = net.places.find((p) => p.id === sourceId)?.tokens ?? 0;
-      const mergedGroup = fusionGroupsByPlace(linkedNet).get(sourceId);
+      const mergedGroup = fusionGroupsByPlace(linkedNet).get(targetId);
+      const rootId = mergedGroup?.root ?? targetId;
+      const rootTokens = net.places.find((p) => p.id === rootId)?.tokens ?? 0;
       const memberIds = new Set(mergedGroup?.members ?? [sourceId, targetId]);
       finalNet = {
         ...linkedNet,
         places: linkedNet.places.map((p) =>
-          memberIds.has(p.id) ? { ...p, tokens: masterTokens } : p,
+          memberIds.has(p.id) ? { ...p, tokens: rootTokens } : p,
         ),
       };
     }
@@ -1375,6 +1403,24 @@ export const useEditorStore = create<EditorState>()(
       future: [],
       dirty: true,
       selection: selection.filter((s) => s.id !== id),
+    });
+  },
+
+  splitConnector: (linkId) => {
+    const { net, past, selection } = get();
+    const connector = connectorOf(net, linkId);
+    if (connector.length === 0) return;
+    // One set() for every link the connector holds, the same way
+    // deleteSelection batches a whole selection's removal into one undo step
+    // rather than one deleteObjectLink call per link.
+    const removedIds = new Set(connector.map((l) => l.id));
+    const links = getLinks(net).filter((l) => !removedIds.has(l.id));
+    set({
+      net: { ...net, links },
+      past: pushHistory(past, net),
+      future: [],
+      dirty: true,
+      selection: selection.filter((s) => !removedIds.has(s.id)),
     });
   },
 
@@ -1493,6 +1539,43 @@ export const useEditorStore = create<EditorState>()(
       dirty: true,
       selection: [],
     });
+  },
+
+  eraseAt: (point, zoom) => {
+    const { net } = get();
+    // A link crosses object boundaries by definition (never "someone else's
+    // internals"); a plain arc is local only when both its ends are; a
+    // place/transition/object is local only when it has no owner of its
+    // own. Mirrors deleteSelection's own scope filter exactly, since a
+    // single-hit erase and a selection erase are the same edit either way.
+    const isEraseable = (hit: EraserHit): boolean => {
+      if (hit.kind === "link") return true;
+      if (hit.kind === "arc") {
+        const arc = net.arcs.find((a) => a.id === hit.id);
+        return !arc || ownerOf(net, arc.source_id) === undefined;
+      }
+      return isLocalToNet(net, hit.id);
+    };
+    const hit = eraserPick(net, point, eraserReachUnits(zoom), isEraseable);
+    if (!hit) return;
+    // deleteElement already routes "object" through deleteObject's
+    // keepContents:false cascade, so no second cascade is needed here.
+    get().deleteElement({ id: hit.id, kind: hit.kind });
+  },
+
+  eraseInBand: (band) => {
+    const { net } = get();
+    const caught = resolveEraserBand(net, band);
+    const refs: ElementRef[] = [
+      ...caught.placeIds.map((id) => ({ id, kind: "place" as const })),
+      ...caught.transitionIds.map((id) => ({ id, kind: "transition" as const })),
+      ...caught.objectIds.map((id) => ({ id, kind: "object" as const })),
+      ...caught.arcIds.map((id) => ({ id, kind: "arc" as const })),
+      ...caught.linkIds.map((id) => ({ id, kind: "link" as const })),
+    ];
+    if (refs.length === 0) return;
+    get().setSelection(refs);
+    get().deleteSelection();
   },
     }),
     {

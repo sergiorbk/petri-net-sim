@@ -30,6 +30,12 @@ export interface PlaceNodeData {
   /** Tooltip naming the places this one is fused with. */
   fusionTitle?: string;
   /**
+   * True for a place that takes part in a fusion, in either role. Once two
+   * places are one instance the marking is no more the master's own than the
+   * copy's, so both draw with the same grey interior, not only the copies.
+   */
+  linked?: boolean;
+  /**
    * Names of elements outside this object this place connects to. Only set
    * while viewing the object's own canvas — extracting it for editing drops
    * every arc/link that crossed the boundary (the other end isn't part of
@@ -85,7 +91,7 @@ export const PlaceNode = memo(({ data, selected }: PlaceNodeProps) => {
             : hasTokens
               ? "border-zinc-300 dark:border-zinc-200"
               : "border-zinc-200 dark:border-zinc-400",
-          "bg-white dark:bg-zinc-900",
+          data.linked ? "bg-zinc-300 dark:bg-zinc-700" : "bg-white dark:bg-zinc-900",
           pulsing && "petri-pulse-place",
         )}
       >

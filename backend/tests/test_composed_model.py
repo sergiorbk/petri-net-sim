@@ -190,6 +190,85 @@ class TestValidate:
         assert any("p1\n" in e and "not a valid XML NCName" in e for e in errors)
 
 
+class TestPlaceFusionRules:
+    """desktop #61's five rules (`ComposedModel.place_fusion_rejection`),
+    each checked in isolation through `validate()` -- one test per rule,
+    the refusal naming its own reason, plus the positive case the whole
+    feature exists for: a fan validates cleanly."""
+
+    def test_rule1_place_cannot_link_to_itself(self):
+        model = ComposedModel.from_nets([("A", _generator_net())])
+        model.add_link(LinkType.PLACE_FUSION, 0, 0, 0, 0)
+        errors = model.validate()
+        assert any("cannot be linked to itself" in e for e in errors)
+
+    def test_rule2_reverse_direction_of_an_existing_link_is_refused(self):
+        model = ComposedModel.from_nets([("A", _generator_net()), ("B", _generator_net())])
+        model.add_link(LinkType.PLACE_FUSION, 0, 0, 1, 0)
+        model.add_link(LinkType.PLACE_FUSION, 1, 0, 0, 0)
+        errors = model.validate()
+        assert any("already linked" in e and "opposite direction" in e for e in errors)
+
+    def test_rule2_restating_the_same_link_is_also_refused(self):
+        model = ComposedModel.from_nets([("A", _generator_net()), ("B", _generator_net())])
+        model.add_link(LinkType.PLACE_FUSION, 0, 0, 1, 0)
+        model.add_link(LinkType.PLACE_FUSION, 0, 0, 1, 0)
+        errors = model.validate()
+        assert any("already linked" in e for e in errors)
+
+    def test_rule3_a_place_cannot_copy_two_masters(self):
+        """The rule that confines a fan to one direction: A.0 can be the
+        SOURCE (the copy) of only one link, so once it copies B, it cannot
+        also copy C."""
+        model = ComposedModel.from_nets(
+            [("A", _generator_net()), ("B", _generator_net()), ("C", _generator_net())]
+        )
+        model.add_link(LinkType.PLACE_FUSION, 0, 0, 1, 0)
+        model.add_link(LinkType.PLACE_FUSION, 0, 0, 2, 0)
+        errors = model.validate()
+        assert any("already copies another one" in e for e in errors)
+
+    def test_rule4_a_link_that_would_close_a_loop_is_refused(self):
+        """B copies A, C copies B; linking A to copy C would close the loop
+        A -> C -> B -> A."""
+        model = ComposedModel.from_nets(
+            [("A", _generator_net()), ("B", _generator_net()), ("C", _generator_net())]
+        )
+        model.add_link(LinkType.PLACE_FUSION, 1, 0, 0, 0)  # B copies A
+        model.add_link(LinkType.PLACE_FUSION, 2, 0, 1, 0)  # C copies B
+        model.add_link(LinkType.PLACE_FUSION, 0, 0, 2, 0)  # A copies C: closes the loop
+        errors = model.validate()
+        assert any("loop" in e for e in errors)
+
+    def test_rule5_both_places_in_the_same_object_is_refused(self):
+        net = PetriNet(name="Self")
+        net.add_place("P1", tokens=1)
+        net.add_place("P2", tokens=0)
+        t = net.add_transition("T1", mean_delay=1.0)
+        net.add_arc(net.places[0].id, t.id)
+        net.add_arc(t.id, net.places[0].id)
+        net.add_arc(net.places[1].id, t.id, arc_type="read")
+        model = ComposedModel.from_nets([("Self", net)])
+        model.add_link(LinkType.PLACE_FUSION, 0, 0, 0, 1)
+        errors = model.validate()
+        assert any(
+            "same Petri-object" in e and "repeat itself" in e for e in errors
+        )
+
+    def test_a_fan_of_three_copies_from_one_master_is_valid(self):
+        """The positive case: ANY number of copies may point at the SAME
+        master, as long as each copy is the source of exactly one link."""
+        model = ComposedModel.from_nets([
+            ("Master", _generator_net()),
+            ("Copy1", _generator_net()),
+            ("Copy2", _generator_net()),
+            ("Copy3", _generator_net()),
+        ])
+        for copy_index in (1, 2, 3):
+            model.add_link(LinkType.PLACE_FUSION, copy_index, 0, 0, 0)
+        assert model.validate() == []
+
+
 class TestResolveElementId:
     def test_resolves_place_and_transition_ids(self):
         model = ComposedModel.from_nets([("A", _generator_net())])

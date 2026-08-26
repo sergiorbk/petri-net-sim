@@ -456,7 +456,13 @@ def op_link_objects(
     a queue two objects both need to see, AND as the replacement for the
     retired placeToTransition link type (fuse the place locally, then wire
     an ordinary or read/test arc from it to the consuming transition
-    inside that same object).
+    inside that same object). source_element is the copy, target_element
+    is the master that holds the marking: ANY number of copies may point
+    at one master (a fan), but a place already used as source_element in
+    one placeFusion cannot be the source_element of another -- it would
+    have no single answer for what its own marking is. A link that would
+    close a loop of copies, or that restates a pair already linked (either
+    direction), is refused too.
     transitionToPlace (source_element is a transition, target_element is
     a place): the transition also produces a token into the target place
     when it fires, without owning a local output place of its own there.

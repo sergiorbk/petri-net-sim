@@ -17,6 +17,7 @@ import {
   isNCName,
   sanitizeNCName,
 } from "@/lib/pnml-export-composed";
+import { FUSION_REJECTION_REASON_TEXT, rejectionForFusion } from "@/lib/petri-object-model";
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -56,7 +57,8 @@ export type ImportWarningCode =
   | "dangling-ref"
   | "cross-page-arc"
   | "bad-number"
-  | "invalid-value";
+  | "invalid-value"
+  | "rejected-fusion";
 
 export interface ImportWarning {
   code: ImportWarningCode;
@@ -695,9 +697,9 @@ function parseComposedPnml(
 
   const declared = declaredLinks(net, placeIdsByPage, transitionIdsByPage, ctx);
 
-  const links: ObjectLink[] = mergeLinks(structural.links, declared, conformant).map(
-    (draft, index) => ({ id: `link_${index}`, ...draft }),
-  );
+  const merged = mergeLinks(structural.links, declared, conformant);
+  const validated = dropInvalidFusions(merged, places, transitions, objects, nodes, ctx);
+  const links: ObjectLink[] = validated.map((draft, index) => ({ id: `link_${index}`, ...draft }));
 
   return { name, places, transitions, arcs, objects, links };
 }
@@ -949,6 +951,57 @@ function mergeLinks(
     merged.push(link);
   }
   return merged;
+}
+
+/**
+ * A document is held to the same five rules the editor gesture is
+ * (rejectionForFusion, petri-object-model.ts): a fusion link a hand-written
+ * or foreign-tool file declares can carry a cycle, a copy repeating two
+ * masters, or a pair linked both ways round, none of which the canvas could
+ * ever have produced itself. Checked in document order, accumulating the
+ * accepted links as it goes, so of a contradictory set the first one stated
+ * is the one that stands, the one that would already have taken effect by
+ * the time a later, conflicting one was declared. Non-fusion links pass
+ * through untouched: only placeFusion has rules to fail.
+ */
+function dropInvalidFusions(
+  draftLinks: DraftLink[],
+  places: PetriPlace[],
+  transitions: PetriTransition[],
+  objects: ObjectFrame[],
+  nodes: Map<string, DocumentNode>,
+  ctx: ParseCtx,
+): DraftLink[] {
+  const accepted: DraftLink[] = [];
+  for (const link of draftLinks) {
+    if (link.type !== "placeFusion") {
+      accepted.push(link);
+      continue;
+    }
+    // rejectionForFusion never looks at a link's id, only its type/endpoints;
+    // these placeholders exist purely to satisfy PetriNetData's shape.
+    const netSoFar: PetriNetData = {
+      name: "",
+      places,
+      transitions,
+      arcs: [],
+      objects,
+      links: accepted.map((l, i) => ({ id: `v${i}`, ...l })),
+    };
+    const reason = rejectionForFusion(netSoFar, link.sourceId, link.targetId);
+    if (reason) {
+      const master = nodes.get(link.targetId);
+      const joined = nodes.get(link.sourceId);
+      ctx.warn(
+        "rejected-fusion",
+        `Dropped the link ${describe("Place", link.targetId, master?.name ?? link.targetId)} = ` +
+          `${describe("Place", link.sourceId, joined?.name ?? link.sourceId)}: ${FUSION_REJECTION_REASON_TEXT[reason]}.`,
+      );
+      continue;
+    }
+    accepted.push(link);
+  }
+  return accepted;
 }
 
 /**

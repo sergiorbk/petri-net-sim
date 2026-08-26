@@ -217,6 +217,41 @@ def _rich_composed_model() -> ComposedModel:
     return model
 
 
+def _fan_composed_model() -> ComposedModel:
+    """desktop #61: a real fan, one master repeated by three copies, all in
+    the SAME direction (each copy is the source of exactly one link, all
+    three pointing at the one master) -- not the single placeFusion link
+    `_rich_composed_model` above already exercises. Exercises the shape
+    `_elect_shared_places` (`services/petri/exporter/composed_document.py`)
+    has to get right for N > 2: three `<referencePlace>` elements sharing
+    one `ref`, and the master alone kept as a real `<place>`.
+    """
+    model = ComposedModel(name="FanComposed")
+
+    master = PetriNet(name="Master")
+    master.add_place("P1", tokens=1, place_id="m_p1")
+    master.add_transition("T1", mean_delay=1.0, transition_id="m_t1")
+    master.add_arc("m_p1", "m_t1", arc_id="m_a1")
+    master.add_arc("m_t1", "m_p1", arc_id="m_a2")
+    model.add_object(master, name="Master")
+
+    for i in range(1, 4):
+        copy = PetriNet(name=f"Copy{i}")
+        copy.add_place("P1", tokens=0, place_id=f"c{i}_p1")
+        copy.add_transition("T1", mean_delay=1.0, transition_id=f"c{i}_t1")
+        copy.add_arc(f"c{i}_p1", f"c{i}_t1", arc_id=f"c{i}_a1")
+        copy.add_arc(f"c{i}_t1", f"c{i}_p1", arc_id=f"c{i}_a2")
+        model.add_object(copy, name=f"Copy{i}")
+        model.add_link(
+            LinkType.PLACE_FUSION,
+            source_object=i, source_element=0,
+            target_object=0, target_element=0,
+        )
+
+    assert model.validate() == [], "the fan itself must be a legal model, not just its export"
+    return model
+
+
 class TestFlatExporterRngConformance:
     """(a): PNMLExporter output for a rich flat net, inhibitor arc included."""
 
@@ -233,6 +268,22 @@ class TestComposedExporterRngConformance:
         xml = ComposedPNMLExporter().export(_rich_composed_model())
         root = _assert_rng_valid(xml, relaxng, label="rich composed model")
         _assert_semantic_rules(root, label="rich composed model")
+
+    def test_fan_of_three_copies_is_rng_conformant(self, relaxng):
+        """desktop #61's conformance claim: a fan is not a special case the
+        schema happens to tolerate, it is an ordinary conformant document:
+        three referencePlace elements, all resolving to the one master."""
+        xml = ComposedPNMLExporter().export(_fan_composed_model())
+        root = _assert_rng_valid(xml, relaxng, label="fan composed model")
+        _assert_semantic_rules(root, label="fan composed model")
+
+        ref_places = [
+            el
+            for page in _all_pages(root.find(f"{_PNML_NS}net"))
+            for el in page.findall(f"{_PNML_NS}referencePlace")
+        ]
+        assert len(ref_places) == 3
+        assert all(el.get("ref") == "m_p1" for el in ref_places)
 
 
 class TestGoldenFixturesRngConformance:

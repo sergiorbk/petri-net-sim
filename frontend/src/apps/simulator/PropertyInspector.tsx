@@ -11,8 +11,9 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/common/Input";
+import { Button } from "@/components/common/Button";
 import { useEditorStore, EDGE_STYLE_OPTIONS, FRAME_STYLE_OPTIONS } from "@/stores/editor-store";
-import { isLocalToNet, ownerOf } from "@/lib/petri-object-model";
+import { connectorOf, isLocalToNet, ownerOf } from "@/lib/petri-object-model";
 import type {
   ArcType,
   DistributionType,
@@ -1053,10 +1054,16 @@ function ObjectLinkView({
 }) {
   const { t } = useTranslation();
   const updateObjectLink = useEditorStore((s) => s.updateObjectLink);
+  const deleteElement = useEditorStore((s) => s.deleteElement);
+  const splitConnector = useEditorStore((s) => s.splitConnector);
   const sourceLabel = labelForNode(t, net, link.sourceId);
   const targetLabel = labelForNode(t, net, link.targetId);
   const isFusion = link.type === "placeFusion";
   const isPlaceToTransition = link.type === "placeToTransition";
+  // Every OTHER placeFusion link sharing this pair of objects, this one
+  // included (see connectorOf). Empty for a non-fusion link (a cross-object
+  // arc-as-link is never part of a connector).
+  const connector = isFusion ? connectorOf(net, link.id) : [];
   return (
     <>
       <Section title={t("inspector.section.endpoints")}>
@@ -1070,6 +1077,28 @@ function ObjectLinkView({
           <ReadOnlyValue value={targetLabel} />
         </Field>
       </Section>
+      {isFusion && (
+        <Section title={t("inspector.section.connector")}>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={readOnly}
+            onClick={() => deleteElement({ id: link.id, kind: "link" })}
+          >
+            {t("canvas.contextMenu.splitSharedPlace")}
+          </Button>
+          {connector.length > 1 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={readOnly}
+              onClick={() => splitConnector(link.id)}
+            >
+              {t("canvas.contextMenu.splitConnector", { count: connector.length })}
+            </Button>
+          )}
+        </Section>
+      )}
       {!isFusion && (
         <Section title={t("inspector.section.behavior")}>
           <Field label={t("inspector.field.weight")}>
