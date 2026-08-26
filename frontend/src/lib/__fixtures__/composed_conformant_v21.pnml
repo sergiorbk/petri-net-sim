@@ -8,7 +8,7 @@
       <name>
         <text>Generator</text>
       </name>
-      <toolspecific tool="PetriNetSim" version="1.0.0">
+      <toolspecific tool="PetriNetSim" version="1.1.0">
         <petriObject index="0" name="Generator" priority="1" x="40" y="60" width="160" height="100"/>
       </toolspecific>
       <place id="p_pool">
@@ -27,7 +27,7 @@
         <name>
           <text>Ready</text>
         </name>
-        <toolspecific tool="PetriNetSim" version="1.0.0">
+        <toolspecific tool="PetriNetSim" version="1.1.0">
           <referenceRole>fusion</referenceRole>
         </toolspecific>
         <graphics>
@@ -46,7 +46,7 @@
         <name>
           <text>Generate</text>
         </name>
-        <toolspecific tool="PetriNetSim" version="1.0.0">
+        <toolspecific tool="PetriNetSim" version="1.1.0">
           <timeDelay>1</timeDelay>
           <delayMeanValue>1</delayMeanValue>
           <distribution>det</distribution>
@@ -79,7 +79,7 @@
       <name>
         <text>Server</text>
       </name>
-      <toolspecific tool="PetriNetSim" version="1.0.0">
+      <toolspecific tool="PetriNetSim" version="1.1.0">
         <petriObject index="1" name="Server" priority="0" x="360" y="60" width="160" height="100"/>
       </toolspecific>
       <place id="p_in">
@@ -110,7 +110,7 @@
         <name>
           <text>Start</text>
         </name>
-        <toolspecific tool="PetriNetSim" version="1.0.0">
+        <toolspecific tool="PetriNetSim" version="1.1.0">
           <timeDelay>2</timeDelay>
           <delayMeanValue>2</delayMeanValue>
           <distribution>exp</distribution>
@@ -124,7 +124,7 @@
         <name>
           <text>End</text>
         </name>
-        <toolspecific tool="PetriNetSim" version="1.0.0">
+        <toolspecific tool="PetriNetSim" version="1.1.0">
           <timeDelay>3</timeDelay>
           <delayMeanValue>3</delayMeanValue>
           <distribution>det</distribution>
@@ -139,7 +139,7 @@
         <name>
           <text>Log</text>
         </name>
-        <toolspecific tool="PetriNetSim" version="1.0.0">
+        <toolspecific tool="PetriNetSim" version="1.1.0">
           <referenceRole>representative</referenceRole>
         </toolspecific>
         <graphics>
@@ -177,7 +177,7 @@
         </inscription>
       </arc>
     </page>
-    <toolspecific tool="PetriNetSim" version="1.0.0">
+    <toolspecific tool="PetriNetSim" version="1.1.0">
       <petriObjectLinks>
         <link type="placeFusion" sourceObject="0" sourceElement="1" sourceElementId="p_ready" targetObject="1" targetElement="0" targetElementId="p_in"/>
         <link type="transitionToPlace" sourceObject="1" sourceElement="0" sourceElementId="t_start" targetObject="0" targetElement="2" targetElementId="p_log" quantity="2"/>
