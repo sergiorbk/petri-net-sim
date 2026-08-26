@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildGraph } from "./EditorCanvas";
 import { connectorOf } from "@/lib/petri-object-model";
-import type { PetriNetData } from "@/types/petri";
+import type { PetriNetData, SimulationSnapshot } from "@/types/petri";
 import type { PlaceNodeData } from "@/components/simulation/PlaceNode";
 
 /**
@@ -235,6 +235,74 @@ describe("buildGraph", () => {
     const { edges } = buildGraph(net, new Set(), null);
     for (const id of ["l1", "l2", "l3"]) {
       expect((edges.find((e) => e.id === id)!.style as { stroke: string }).stroke).toBe("#a855f7");
+    }
+  });
+
+  /**
+   * A running step pulses every place of a fusion group, because the engine
+   * knows the pair as two places and would otherwise pulse only the half it
+   * happens to name. The tie between them has to light with them: it is the
+   * only thing on the canvas that explains why a token appeared to jump
+   * between two circles.
+   */
+  function stepSnapshot(): SimulationSnapshot {
+    return {
+      markings: { p1: 1, p2: 1, p3: 0, p4: 0, p5: 0, p6: 0 },
+      buffers: {},
+      active_transition_id: "tx",
+      active_phase: "after_act_out",
+    } as unknown as SimulationSnapshot;
+  }
+
+  function netWithFusionAndAFiringTransition(): PetriNetData {
+    const net = netWithTwoConnectors();
+    return {
+      ...net,
+      transitions: [
+        {
+          id: "tx",
+          name: "TX",
+          priority: 0,
+          distribution: null,
+          mean_delay: 0,
+          standard_deviation: 0,
+          probability: null,
+          graphics: { x: 0, y: 400 },
+          objectId: "oa",
+        },
+      ],
+      // The step delivers into p1, which is one end of connector l1/l2.
+      arcs: [{ id: "ax", source_id: "tx", target_id: "p1", weight: 1, arc_type: "NORMAL" }],
+    };
+  }
+
+  it("lights the ties of a fusion group the running step touched", () => {
+    const net = netWithFusionAndAFiringTransition();
+    const { edges } = buildGraph(net, new Set(), null, stepSnapshot());
+
+    const touched = edges.find((e) => e.id === "l1")!;
+    const untouched = edges.find((e) => e.id === "l3")!;
+
+    expect((touched.data as { lit: boolean }).lit).toBe(true);
+    expect((touched.style as { stroke: string }).stroke).not.toBe("#a855f7");
+    // A tie whose places the step never reached stays exactly as it was.
+    expect((untouched.data as { lit: boolean }).lit).toBe(false);
+    expect((untouched.style as { stroke: string }).stroke).toBe("#a855f7");
+  });
+
+  it("lights a tie without putting it in the user's selection", () => {
+    const net = netWithFusionAndAFiringTransition();
+    const { edges } = buildGraph(net, new Set(), null, stepSnapshot());
+    // React Flow reports `selected` edges back through onSelectionChange, so a
+    // lit tie that borrowed that flag would still be selected after the run.
+    expect(edges.find((e) => e.id === "l1")!.selected).toBe(false);
+  });
+
+  it("leaves every tie unlit when no step is running", () => {
+    const net = netWithFusionAndAFiringTransition();
+    const { edges } = buildGraph(net, new Set(), null);
+    for (const id of ["l1", "l2", "l3"]) {
+      expect((edges.find((e) => e.id === id)!.data as { lit: boolean }).lit).toBe(false);
     }
   });
 });

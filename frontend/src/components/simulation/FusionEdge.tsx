@@ -31,11 +31,19 @@ const DASH_DOT = "9 4 2 4";
  * Direction is still legible because a filled node marks the master end
  * only, so with one master repeated by several copies those nodes coincide
  * and a fan reads as one origin rather than as several unrelated ties.
+ *
+ * `data.lit` means a running step is passing through the place this tie
+ * declares, and draws it as heavily as a selected one. It is carried in data
+ * rather than through React Flow's own `selected` flag on purpose: that flag
+ * feeds the canvas's selection change handler, so borrowing it for an
+ * animation would leave the tie sitting in the user's selection once the run
+ * had moved on.
  */
 export const FusionEdge = memo(
-  ({ sourceX, sourceY, targetX, targetY, style, selected }: EdgeProps) => {
+  ({ sourceX, sourceY, targetX, targetY, style, selected, data }: EdgeProps) => {
     const [path] = getStraightPath({ sourceX, sourceY, targetX, targetY });
     const color = (style?.stroke as string | undefined) ?? "#a855f7";
+    const emphasised = selected === true || (data as { lit?: boolean } | undefined)?.lit === true;
 
     return (
       <>
@@ -44,7 +52,7 @@ export const FusionEdge = memo(
           style={{
             ...style,
             stroke: color,
-            strokeWidth: selected ? STROKE_WIDTH_SELECTED : STROKE_WIDTH,
+            strokeWidth: emphasised ? STROKE_WIDTH_SELECTED : STROKE_WIDTH,
             strokeDasharray: DASH_DOT,
             strokeLinecap: "round",
           }}
@@ -52,7 +60,7 @@ export const FusionEdge = memo(
         <circle
           cx={targetX}
           cy={targetY}
-          r={selected ? MASTER_NODE_R_SELECTED : MASTER_NODE_R}
+          r={emphasised ? MASTER_NODE_R_SELECTED : MASTER_NODE_R}
           fill={color}
         />
       </>

@@ -83,4 +83,11 @@ describe("FusionEdge", () => {
     const circle = container.querySelector("circle")!;
     expect(circle.getAttribute("fill")).toBe("#3b82f6");
   });
+
+  it("draws a tie the running step lights as heavily as a selected one", () => {
+    const lit = renderEdge({ selected: false, data: { lit: true } });
+    const path = lit.querySelector<SVGPathElement>("path.react-flow__edge-path")!;
+    expect(path.style.strokeWidth).toBe("2.2");
+    expect(lit.querySelector("circle")!.getAttribute("r")).toBe("5");
+  });
 });

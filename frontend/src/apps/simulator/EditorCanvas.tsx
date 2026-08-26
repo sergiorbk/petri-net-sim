@@ -1042,6 +1042,24 @@ export function buildGraph(
     if (!group) continue;
     for (const memberId of group.members) pulsingPlaceIds.add(memberId);
   }
+
+  // The tie lights with the places it joins. Watching a step, the token appears
+  // to jump between two circles that are really one place, and the line saying
+  // so is the only thing on the canvas that explains the jump; leaving it in
+  // its resting colour while both ends pulse reads as though the two were
+  // unrelated. Membership is enough to decide it: pulsingPlaceIds was just
+  // widened to whole groups above, so a link is lit exactly when the group it
+  // belongs to is the one the step touched.
+  const animationLitLinkIds = new Set<string>();
+  if (pulsingPlaceIds.size > 0) {
+    for (const link of getLinks(net)) {
+      if (link.type !== "placeFusion") continue;
+      if (pulsingPlaceIds.has(link.sourceId) || pulsingPlaceIds.has(link.targetId)) {
+        animationLitLinkIds.add(link.id);
+      }
+    }
+  }
+
   const fusionMarkingFor = (placeId: string): number | undefined =>
     simSnapshot ? resolveFusionMarking(fusionGroups, simSnapshot.markings, placeId) : undefined;
 
@@ -1198,8 +1216,12 @@ export function buildGraph(
       net, hiddenIds, link.targetId, "target", link.id, LINK_TARGET_HANDLE,
     );
     if (!source || !target) continue;
+    // A tie the animation lights reads the same as one the user picked out, and
+    // outranks the connector tint: while a step is running, what the eye needs
+    // is where the token went, not which pair of objects the strand belongs to.
+    const isLit = animationLitLinkIds.has(link.id);
     const isSelected = selectedIds.has(link.id);
-    const isSibling = !isSelected && connectorSiblingIds.has(link.id);
+    const isSibling = !isLit && !isSelected && connectorSiblingIds.has(link.id);
     edges.push({
       id: link.id,
       source: source.node,
@@ -1208,8 +1230,10 @@ export function buildGraph(
       targetHandle: target.handle,
       type: "fusion",
       selected: isSelected,
+      data: { lit: isLit },
       style: {
-        stroke: isSelected ? CONNECTOR_ACCENT : isSibling ? CONNECTOR_HELD_BACK : "#a855f7",
+        stroke:
+          isLit || isSelected ? CONNECTOR_ACCENT : isSibling ? CONNECTOR_HELD_BACK : "#a855f7",
       },
     });
   }
