@@ -2,6 +2,7 @@
 # (backend/ and frontend/ each already have their own .dockerignore-free
 # setup since their own Dockerfiles use a narrower per-directory context).
 .git
+**/.git
 **/.venv
 **/node_modules
 **/dist

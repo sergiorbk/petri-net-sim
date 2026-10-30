@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from mcp.server.fastmcp import FastMCP
+from petri_modeling_skills import catalog
 
 from src.core.config import settings
 from src.mcp.session_store import AbstractSessionStore, InMemorySessionStore
@@ -95,16 +96,12 @@ async def mcp_lifespan(server: FastMCP) -> AsyncIterator[McpLifespanContext]:
 #: product version is surfaced in the instructions text instead.
 _MCP_INSTRUCTIONS = (
     f"Petri Net Sim MCP Server (v{settings.APP_VERSION}). "
-    "Build Petri Net models for production and queueing systems. "
-    "Workflow: create_network -> add patterns (generators, machines, etc.) -> "
-    "connect_patterns -> optimize_network -> export_pnml. "
-    "Patterns auto-connect sequentially when added in order. "
-    "For a system with genuinely separate modules, use Petri-objects instead of "
-    "one flat net: create_object -> build that object with the usual add_* tools -> "
-    "link_objects (placeFusion for a shared resource, transitionToPlace for a "
-    "cross-object delivery) -> validate_model -> run_simulation or export_pnml. "
-    "Every add_*/modify_* call targets whichever object is active; "
-    "set_active_object() with no argument returns to the free pool."
+    "Before building or changing a model, read the shared modeling guides and "
+    "the application's tool bindings. Use the build_queueing_system or "
+    "build_production_line prompt for a complete task context. "
+    "Shared resources: " + ", ".join(resource["uri"] for resource in catalog()) + ". "
+    "Application bindings: petri://skills/petri-net-sim-api. "
+    "Inspect the existing model and available tool schemas before editing."
 )
 
 

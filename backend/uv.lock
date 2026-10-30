@@ -1718,6 +1718,11 @@ wheels = [
 ]
 
 [[package]]
+name = "petri-modeling-skills"
+version = "0.1.0"
+source = { directory = "vendor/petri-modeling-skills" }
+
+[[package]]
 name = "petri-net-sim"
 version = "1.1.0"
 source = { editable = "." }
@@ -1739,6 +1744,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "langgraph-checkpoint-postgres" },
     { name = "mcp" },
+    { name = "petri-modeling-skills" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -1790,6 +1796,7 @@ requires-dist = [
     { name = "langgraph-checkpoint-postgres", specifier = ">=2.0.0" },
     { name = "lxml", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "mcp", specifier = ">=1.6.0" },
+    { name = "petri-modeling-skills", directory = "vendor/petri-modeling-skills" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },

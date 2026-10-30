@@ -167,3 +167,9 @@ PNML against the real ISO/IEC 15909-2 standard, are vendored from the pnml.org
 reference schema and carry their own copyright (Michael Weber, Ekkart Kindler,
 Christian Stehno, Lom Hillah, 2001-2009). They are test fixtures, not shipped
 code, and are not covered by the license above.</sub>
+
+### Shared modeling guidance
+
+[petri-modeling-skills](https://github.com/sergiorbk/petri-modeling-skills)
+holds the shared modeling rules, pattern guidance and PNML knowledge used by this
+application and the Swing editor. See [integration and updates](docs/modeling-skills.md).

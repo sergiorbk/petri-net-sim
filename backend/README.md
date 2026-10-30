@@ -22,6 +22,7 @@ Normally you run this through the monorepo's Compose stack: see the
 ## Standalone development
 
 ```bash
+git submodule update --init --recursive # shared modeling package
 uv sync --extra dev                    # dependencies, including test extras
 docker compose up -d postgres          # a database, from the root compose file
 uv run alembic upgrade head            # migrations
