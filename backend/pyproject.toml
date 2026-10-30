@@ -13,6 +13,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 license = "PolyForm-Noncommercial-1.0.0"
 dependencies = [
+    "petri-modeling-skills==0.1.0",
     "fastapi>=0.128.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
@@ -106,3 +107,6 @@ dev = [
     "pysonar==1.5.0.4793",
     "tomli==2.4.1",
 ]
+
+[tool.uv.sources]
+petri-modeling-skills = { path = "vendor/petri-modeling-skills" }

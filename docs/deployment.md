@@ -85,7 +85,7 @@ curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker "$USER"   # log out and back in
 
 # 2. The compose files, from this repo
-git clone https://github.com/sergiorbk/petri-net-sim.git ~/petri-net-sim
+git clone --recurse-submodules https://github.com/sergiorbk/petri-net-sim.git ~/petri-net-sim
 cd ~/petri-net-sim
 
 # 3. This deployment's configuration. Never committed.

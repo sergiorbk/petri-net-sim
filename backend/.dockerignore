@@ -18,3 +18,7 @@ htmlcov/
 *.md
 !README.md
 *.log
+
+!vendor/petri-modeling-skills/**/*.md
+vendor/petri-modeling-skills/.git
+!src/services/agent/prompts/petri_api_adapter.md

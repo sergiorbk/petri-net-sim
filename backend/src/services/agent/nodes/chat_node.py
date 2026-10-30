@@ -1,6 +1,5 @@
 """Chat node for LLM response generation."""
 
-from pathlib import Path
 from typing import Any
 
 from langchain_core.messages import AIMessage, SystemMessage
@@ -9,6 +8,7 @@ from src.core.agent_config import agent_settings
 from src.core.logger import get_logger
 from src.services.agent.state import AgentState
 from src.services.agent.tools import PETRI_TOOLS
+from src.services.modeling_guidance import modeling_prompt
 from src.services.llm import get_llm_factory
 from src.services.llm.credentials import LLMCredentials
 from src.services.llm.message_content import content_to_text
@@ -17,10 +17,9 @@ from src.services.llm.token_manager import get_token_manager
 
 logger = get_logger()
 
-_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "petri_net_expert.md"
-SYSTEM_PROMPT = _PROMPT_PATH.read_text(encoding="utf-8")
+SYSTEM_PROMPT = modeling_prompt()
 
-# Per-turn override of the base prompt's PETRI-OBJECTS section (which
+# Per-turn override of the shared guide's composition default (which
 # defaults to "flat unless genuinely separate modules"), keyed by the
 # chat workbench's net-style toggle -- see ChatWorkbench's NetStyleToggle
 # and openai_chat_service._build_state's net_style param for how a value
@@ -29,7 +28,7 @@ SYSTEM_PROMPT = _PROMPT_PATH.read_text(encoding="utf-8")
 _NET_STYLE_NOTES = {
     "object": (
         "NET STYLE FOR THIS TURN: Petri-object (composed model). HARD "
-        "REQUIREMENT that OVERRIDES the PETRI-OBJECTS section above -- "
+        "REQUIREMENT that OVERRIDES the shared composition default above: "
         "including its \"a single linear flow (Generator -> machines -> "
         "Exit) stays flat, do not create an object for it\" example. That "
         "example does NOT apply in this mode; ignore it completely, even "
