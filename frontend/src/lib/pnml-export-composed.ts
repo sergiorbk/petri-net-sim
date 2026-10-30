@@ -309,16 +309,14 @@ function graphicsBlock(x: number, y: number): string[] {
   return ["<graphics>", `  <position x="${round(x)}" y="${round(y)}"/>`, "</graphics>"];
 }
 
-function placeXml(id: string, name: string, tokens: number, x: number, y: number): string {
+function placeXml(id: string, name: string, tokens: number, x: number, y: number, tag?: string | null): string {
   const center = placeCenter(x, y);
   const lines: string[] = [`<place id="${escapeXml(id)}">`];
   lines.push(...indent(nameBlock(name), "  "));
   if (tokens > 0) {
     lines.push("  <initialMarking>", `    <text>${tokens}</text>`, "  </initialMarking>");
   }
-  // A plain place has nothing left to say in toolspecific once <coordinates>
-  // is gone (PNML ISO conformance contract, decision 1): no block at all,
-  // the same precedent an INHIBITOR/READ-free arc already sets.
+  if (tag) lines.push(...indent(toolspecificBlocks([`<semanticTag>${escapeXml(tag)}</semanticTag>`]), "  "));
   lines.push(...indent(graphicsBlock(center.x, center.y), "  "));
   lines.push("</place>");
   return lines.join("\n");
@@ -411,6 +409,7 @@ function referenceNodeXml(
    * the moment the file is saved and reopened.
    */
   provenance: string,
+  semanticTag?: string | null,
 ): string {
   // A reference node's wire position uses the size of the node kind it
   // stands for: a referencePlace is drawn as a place, a referenceTransition
@@ -422,6 +421,7 @@ function referenceNodeXml(
   lines.push(...indent(nameBlock(name), "  "));
 
   const ts: string[] = [`<referenceRole>${role}</referenceRole>`];
+  if (semanticTag) ts.push(`<semanticTag>${escapeXml(semanticTag)}</semanticTag>`);
   if (fusedMarking != null && fusedMarking > 0) {
     ts.push(`<fusedInitialMarking>${fusedMarking}</fusedInitialMarking>`);
   }
@@ -618,7 +618,7 @@ function buildPages(body: ComposedSimulateBody, namespaced: boolean, remap: IdAs
       const survivor = shared.get(`${i}:${placeIndex}`);
       const ownId = emitId(remap, namespaced, i, place.id);
       if (!survivor) {
-        return placeXml(ownId, place.name, place.tokens, place.graphics.x, place.graphics.y);
+        return placeXml(ownId, place.name, place.tokens, place.graphics.x, place.graphics.y, place.tag);
       }
       const survivorId = slotId(survivor);
       return referenceNodeXml(
@@ -631,6 +631,7 @@ function buildPages(body: ComposedSimulateBody, namespaced: boolean, remap: IdAs
         "fusion",
         place.tokens > 0 ? place.tokens : undefined,
         `This place is shared with "${survivorId}", which holds the marking for both.`,
+        place.tag,
       );
     });
 

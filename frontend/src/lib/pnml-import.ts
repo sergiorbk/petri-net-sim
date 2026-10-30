@@ -1066,7 +1066,8 @@ function parsePlace(raw: Record<string, unknown>, ctx: ParseCtx, idOverride?: st
     }
   }
   const graphics = extractCenterPosition(raw, "place");
-  return { id, name, tokens, graphics };
+  const tag = textOf(toolspecificValue(raw, "semanticTag"));
+  return { id, name, tokens, graphics, ...(tag ? { tag } : {}) };
 }
 
 function parseTransition(raw: Record<string, unknown>, ctx: ParseCtx): PetriTransition {
