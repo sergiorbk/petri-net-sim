@@ -18,9 +18,11 @@
         <text>{{ place.tokens }}</text>
       </initialMarking>
       {% endif %}
-      {# A plain place has nothing left to say in toolspecific once #}
-      {# <coordinates> is gone (PNML ISO conformance contract, decision 1): #}
-      {# no block at all, same precedent as a NORMAL arc below. #}
+      {% if place.tag %}
+      {% call ts.toolspecific() %}
+        <semanticTag>{{ place.tag }}</semanticTag>
+      {% endcall %}
+      {% endif %}
       <graphics>
         <position x="{{ (place.graphics.x + PLACE_W / 2) | round_half_up }}" y="{{ (place.graphics.y + PLACE_H / 2) | round_half_up }}"/>
       </graphics>

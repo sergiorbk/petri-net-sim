@@ -77,6 +77,7 @@ class FusionRef:
     x: float
     y: float
     fused_marking: int
+    tag: str | None = None
     shared_with: str = ""
     slot_kind: str = field(default="fusion", init=False)
 
@@ -469,6 +470,7 @@ def _build_object_doc(
             x=place.graphics.x,
             y=place.graphics.y,
             fused_marking=place.tokens,
+            tag=place.tag,
         ))
 
     for t in obj.net.transitions:

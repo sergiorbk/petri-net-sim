@@ -118,9 +118,6 @@ function exportFlatPnml(net: PetriNetData): string {
     // React Flow's top-left anchor (graphics.x/y).
     const x = Math.round(p.graphics.x + PLACE_W / 2);
     const y = Math.round(p.graphics.y + PLACE_H / 2);
-    // A plain place has nothing left to say in toolspecific once <coordinates>
-    // is gone (PNML ISO conformance contract, decision 1): no block at all,
-    // the same precedent a NORMAL arc's own toolspecific-free case sets below.
     const place: Record<string, unknown> = {
       "@_id": emitOwnPlaceId(i),
       name: { text: placeNames.get(p.id) ?? p.name },
@@ -131,6 +128,7 @@ function exportFlatPnml(net: PetriNetData): string {
     if (p.tokens > 0) {
       place.initialMarking = { text: p.tokens };
     }
+    if (p.tag) place.toolspecific = toolspecificBlocks({ semanticTag: p.tag });
     return place;
   });
 
