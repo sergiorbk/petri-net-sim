@@ -1719,8 +1719,12 @@ wheels = [
 
 [[package]]
 name = "petri-modeling-skills"
-version = "0.1.0"
+version = "0.3.0"
 source = { directory = "vendor/petri-modeling-skills" }
+
+[package.metadata]
+requires-dist = [{ name = "jsonschema", marker = "extra == 'test'", specifier = ">=4.18" }]
+provides-extras = ["test"]
 
 [[package]]
 name = "petri-net-sim"
@@ -1735,6 +1739,7 @@ dependencies = [
     { name = "fpdf2" },
     { name = "httpx" },
     { name = "jinja2" },
+    { name = "jsonschema" },
     { name = "langchain" },
     { name = "langchain-anthropic" },
     { name = "langchain-community" },
@@ -1745,6 +1750,7 @@ dependencies = [
     { name = "langgraph-checkpoint-postgres" },
     { name = "mcp" },
     { name = "petri-modeling-skills" },
+    { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -1786,6 +1792,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
+    { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "langchain", specifier = ">=0.3.0" },
     { name = "langchain-anthropic", specifier = ">=1.0.0,<1.4.0" },
     { name = "langchain-community", specifier = ">=0.3.0" },
@@ -1797,6 +1804,7 @@ requires-dist = [
     { name = "lxml", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "mcp", specifier = ">=1.6.0" },
     { name = "petri-modeling-skills", directory = "vendor/petri-modeling-skills" },
+    { name = "pillow", specifier = ">=12.2.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },

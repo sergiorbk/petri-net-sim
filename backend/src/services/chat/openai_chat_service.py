@@ -78,11 +78,14 @@ def _ensure_object_style(net_data: dict, net_style: str) -> dict:
     # net_data by tool_node.py, not a PetriNet/ComposedModel field --
     # PetriNetSession.from_net_data would reject it as an unexpected kwarg.
     pnml_export = net_data.get("_last_pnml_export")
-    clean = {k: v for k, v in net_data.items() if k != "_last_pnml_export"}
+    pending_downloads = net_data.get("_pending_downloads")
+    clean = {k: v for k, v in net_data.items() if k not in {"_last_pnml_export", "_pending_downloads"}}
     session = PetriNetSession.from_net_data(clean)
     if not session.ensure_patterns_in_objects():
         return net_data
     wrapped = session.to_net_data()
+    if pending_downloads:
+        wrapped["_pending_downloads"] = pending_downloads
     if pnml_export is not None:
         wrapped["_last_pnml_export"] = pnml_export
     return wrapped
@@ -169,6 +172,7 @@ class OpenAIChatService:
         # whatever net a PRIOR, possibly differently-styled turn left behind.
         if _net_structure_hash(new_net_data) != _net_structure_hash(net_data):
             new_net_data = _ensure_object_style(new_net_data, net_style)
+        downloads = new_net_data.pop("_pending_downloads", [])
         pnml_content = new_net_data.pop("_last_pnml_export", None)
         await self._session_service.save_net_data(session_id, new_net_data)
 
@@ -176,6 +180,11 @@ class OpenAIChatService:
             response_message = await self._inject_pnml_download(
                 response_message, pnml_content, session_id, user_id
             )
+
+        for download in downloads:
+            response_message = response_message.model_copy(update={
+                "content": (response_message.content or "") + await self._binary_download_link(download, session_id, user_id)
+            })
 
         # Token usage
         prompt_tokens = self._token_manager.count_messages_tokens(lc_messages)
@@ -413,6 +422,15 @@ class OpenAIChatService:
         if final_net_data is not net_data:
             final_net_data = _ensure_object_style(final_net_data, net_style)
 
+        downloads = final_net_data.pop("_pending_downloads", []) if final_net_data else []
+        for download in downloads:
+            link_text = await self._binary_download_link(download, session_id, user_id)
+            completion_tokens += self._token_manager.count_tokens(link_text)
+            yield _format_sse(ChatCompletionChunk(
+                id=completion_id, created=created, model=MODEL_ID,
+                choices=[ChunkChoice(index=0, delta=ChatMessageDelta(content=link_text))],
+            ))
+
         # If the agent produced PNML, store it and stream a download link
         pnml_content = final_net_data.pop("_last_pnml_export", None) if final_net_data else None
         if pnml_content:
@@ -641,6 +659,16 @@ class OpenAIChatService:
             content=final_text or None,
             agent_events=events or None,
         )
+
+    async def _binary_download_link(self, download: dict, session_id: str, user_id: uuid.UUID) -> str:
+        try:
+            file_id = await self._file_service.store_download(session_id, user_id, download)
+            token = get_jwt_service().create_download_token(file_id=uuid.UUID(file_id), user_id=user_id)
+            label = "Download PNG" if download["media_type"] == "image/png" else "Download training ZIP"
+            return f"\n\n[{label}]({settings.APP_PUBLIC_URL.rstrip('/')}/api/v1/files/{file_id}?token={token})"
+        except Exception:
+            logger.exception("Could not save the generated binary export")
+            return "\n\nThe export could not be saved. Please retry the export."
 
     async def _inject_pnml_download(
         self,

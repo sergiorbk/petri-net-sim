@@ -56,3 +56,15 @@ it has not already been optimized. Preserve the boundaries of composed models.
 For a requested chart use `show_chart` with the actual result data. It supports
 `bar`, `line` and `pie`. Use Mermaid for a structural diagram. Do not substitute
 an ASCII chart for the application's visualization tool.
+
+
+## Session evidence and image exports
+
+Use `export_image` for a network-only PNG and `export_training_data` for the
+shared training bundle. In built-in chat these tools produce real download
+links through the application. Do not copy base64 into a reply. External MCP
+clients receive filename, MIME type and base64 bytes and save those bytes.
+Supply actual task context and external conversation explicitly when available;
+the application cannot read another client's chat. Do not fabricate tool call
+timestamps, verification, acceptance or missing messages. Start unreviewed and
+leave verification unknown unless actual checks justify another status.

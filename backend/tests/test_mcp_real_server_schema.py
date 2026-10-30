@@ -38,7 +38,7 @@ EXPECTED_TOOL_NAMES = frozenset({
     "connect_blocking_consumer", "connect_bounded_consumer",
     "connect_patterns", "connect_return_loop", "connect_schedule_gate",
     "connect_wip_return", "connect_workstation_bypass", "create_network",
-    "create_object", "export_pnml", "find_elements", "find_free_position",
+    "create_object", "export_image", "export_training_data", "export_pnml", "find_elements", "find_free_position",
     "get_network_bounds", "get_network_status", "get_pattern_bounds",
     "get_simulation_results", "import_pnml", "link_objects", "list_elements",
     "list_links", "list_objects", "list_pattern_instances",
@@ -74,7 +74,7 @@ class TestRealMcpServerToolNames:
     @pytest.mark.anyio
     async def test_tool_count(self):
         tools = await _real_tools()
-        assert len(tools) == 81
+        assert len(tools) == 83
 
 
 class TestRepresentativeToolSchemas:

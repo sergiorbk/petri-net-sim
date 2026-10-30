@@ -278,6 +278,9 @@ async def download_file(
     if not generated_file:
         return _openai_error(404, "File not found or expired", "not_found")
 
+    if generated_file.content_type in {"image/png", "application/zip"}:
+        from src.services.training_export import attachment
+        return attachment(FileService.download_bytes(generated_file), generated_file.filename, generated_file.content_type)
     return Response(
         content=generated_file.content,
         media_type=generated_file.content_type,

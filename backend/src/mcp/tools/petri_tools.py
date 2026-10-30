@@ -69,7 +69,22 @@ def _build_tool_fn(spec: ToolSpec) -> Callable:
         # **kwargs) would otherwise hard-fail with a TypeError naming the
         # internal op_* function instead of a clean tool result.
         known, dropped = spec.filter_kwargs(kwargs)
-        result = spec.operation(session, **known)
+        if spec.name in {"export_training_data", "export_image"}:
+            from starlette.concurrency import run_in_threadpool
+            result = await run_in_threadpool(spec.operation, session, **known)
+        else:
+            result = spec.operation(session, **known)
+        if spec.name not in {"export_training_data", "export_image"}:
+            from src.services.training_export import sanitize, utc_now
+            trace = getattr(session, "_export_tool_trace", [])
+            trace.append(sanitize({"tool": spec.name, "arguments": known, "result": str(result),
+                                   "timestamp": utc_now(), "origin": "application",
+                                   "error": str(result) if isinstance(result, ToolError) else None}))
+            # This ledger belongs only to this live MCP session and excludes
+            # export payloads, credentials and protocol context.
+            if len(trace) > 200:
+                session._export_trace_truncated = True
+            session._export_tool_trace = trace[-200:]
         await _save_session(ctx, session)
         text = str(result)
         if dropped and not isinstance(result, ToolError):

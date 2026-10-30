@@ -2634,3 +2634,59 @@ def op_add_pattern(
         f"Output: {result.interface.output_place_id}."
         f"{meta_str}{auto_msg}{conn_warn}"
     )
+
+
+@tool_operation
+def op_export_image(session: PetriNetSession, title: str = "") -> str:
+    """Export the current model as a network-only PNG.
+
+    Returns filename, media_type and data_base64. Decode the base64 to save
+    the actual PNG; this is a model illustration, not an editor screenshot.
+    """
+    from src.services.training_export import render_network, encoded_download, filename
+    data, _ = render_network(session.to_net_data())
+    title = title or session.to_net_data().get("name") or "Petri network"
+    return encoded_download(data, filename(title, ".png"), "image/png")
+
+
+@tool_operation
+def op_export_training_data(
+    session: PetriNetSession,
+    title: str = "",
+    context: dict | None = None,
+    conversation: list[dict] | None = None,
+    tool_calls: list[dict] | None = None,
+) -> str:
+    """Export task-scoped training ZIP with PNML, evidence, PNG and geometry.
+
+    Returns filename, media_type and data_base64 for a real ZIP. context may
+    provide task, clarifications, assumptions, acceptance, status and explicit
+    verification. Default status is unreviewed, verification unknown. Optional
+    conversation contains actual user/assistant messages; tool_calls contains
+    client-observed records with actual UTC timestamps. Never invent missing
+    conversations, tool results, timestamps or successful verification.
+    """
+    from src.services.training_export import build_training_bundle, encoded_download
+    observed = getattr(session, "_export_tool_trace", [])
+    context = dict(context or {})
+    if getattr(session, "_export_trace_truncated", False) and tool_calls is None:
+        context["trace_truncated"] = True
+    simulation = None
+    if session.last_simulation_result is not None:
+        from dataclasses import asdict
+        observed_result = session.last_simulation_result
+        results = asdict(observed_result)
+        results["summary"] = session.last_simulation_summary or ""
+        simulation = {"parameters": {"simulation_time": observed_result.simulation_time, "time_unit": "s"},
+                      "results": results, "provenance": "application: last observed simulation result; may predate subsequent model edits"}
+    elif session.last_simulation_summary:
+        simulation = {"parameters": {}, "results": {"summary": session.last_simulation_summary}, "provenance": "application: recorded simulation summary; parameters unavailable; may predate model edits"}
+    title = title or session.to_net_data().get("name") or "Petri session"
+    data, name = build_training_bundle(
+        session.to_net_data(), title, context=context, conversation=conversation,
+        tool_calls=tool_calls if tool_calls is not None else observed,
+        conversation_origin=getattr(session, "_export_conversation_origin", "client-provided") if conversation else "unavailable",
+        tool_origin="client-provided" if tool_calls is not None else "application",
+        simulation=simulation,
+    )
+    return encoded_download(data, name, "application/zip")

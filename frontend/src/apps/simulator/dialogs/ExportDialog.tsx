@@ -4,23 +4,15 @@ import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editor-store";
 import type { PetriNetData } from "@/types/petri";
 import { exportPnml, buildExportFilename } from "@/lib/pnml-export";
+import { downloadNetworkImage } from "@/lib/export-client";
 import { toast } from "@/stores/toast-store";
 
-/**
- * Both write the same PNML document; only the file extension differs.
- * PNML is an XML dialect, and some tools accept a `.xml` file and refuse
- * an unfamiliar extension without ever looking inside it -- so the choice
- * is which name the file leaves under, not what it contains.
- *
- * JSON, PNG and SVG used to sit here as permanently disabled options. An
- * option that has never been available is not a promise, it is clutter,
- * and it made the one real choice look like a quarter of the menu.
- */
-type ExportFormat = "pnml" | "xml";
+type ExportFormat = "pnml" | "xml" | "png";
 
 const FORMAT_IDS: readonly { id: ExportFormat; enabled: boolean }[] = [
   { id: "pnml", enabled: true },
   { id: "xml", enabled: true },
+  { id: "png", enabled: true },
 ];
 
 function downloadBlob(content: string, filename: string, mime: string) {
@@ -62,9 +54,18 @@ export function ExportDialog({ onClose, net: netProp, version, id }: ExportDialo
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback(async () => {
     const editor = useEditorStore.getState();
     const net = netProp ?? editor.net;
+    if (selected === "png") {
+      try {
+        await downloadNetworkImage(net);
+        onClose();
+      } catch {
+        toast(t("trainingExport.failed"), "error");
+      }
+      return;
+    }
     let xml: string;
     try {
       xml = exportPnml(net, (message) => toast(message, "warning"));
@@ -81,7 +82,7 @@ export function ExportDialog({ onClose, net: netProp, version, id }: ExportDialo
     });
     downloadBlob(xml, filename, "application/xml");
     onClose();
-  }, [selected, onClose, netProp, version, id]);
+  }, [selected, onClose, netProp, version, id, t]);
 
   const selectedFmt = FORMAT_IDS.find((f) => f.id === selected);
 

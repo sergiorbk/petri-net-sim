@@ -56,7 +56,7 @@ RUN apt-get update \
         "https://apt.postgresql.org/pub/repos/apt trixie-pgdg main" \
         > /etc/apt/sources.list.d/pgdg.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends postgresql-16 tini \
+    && apt-get install -y --no-install-recommends postgresql-16 tini fonts-dejavu-core \
     && apt-get purge -y --auto-remove curl gnupg \
     # libllvm19 (JIT), libz3-4 (only used by libllvm19) and libperl5.40 plus
     # perl-modules-5.40 (PL/Perl) are hard Depends of postgresql-16 /

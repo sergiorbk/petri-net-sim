@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { downloadExport } from "@/lib/export-client";
 import { cn } from "@/lib/utils";
 import { useChatStore, getBackendSessionId } from "@/stores/chat-store";
 import { useSimulationStore } from "@/stores/simulation-store";
@@ -316,6 +317,24 @@ export function ChatWorkbench() {
   // as an overlay.
   const showSidebarToggle = isMobile && !sidebarOpen;
 
+  const [exporting, setExporting] = useState(false);
+  const exportTraining = async () => {
+    if (!effectiveBackendId || !session) return;
+    setExporting(true);
+    try {
+      // Pass the visible conversation explicitly, including unsynced messages.
+      // Old histories have no reliable tool timestamps, so none are invented.
+      await downloadExport(`/api/v1/sessions/${effectiveBackendId}/training-data`, {
+        conversation: session.messages.filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({ role: m.role, content: m.content, timestamp: new Date(m.timestamp).toISOString() })),
+      }, "session-training.zip");
+    } catch {
+      toast(t("trainingExport.failed"), "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const chatPanel = (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
@@ -323,6 +342,13 @@ export function ChatWorkbench() {
         <span className="min-w-0 flex-1 truncate px-1 text-xs font-medium text-text-secondary">
           {session?.title ?? t("sidebar.newChat")}
         </span>
+        {!session?.isShared && effectiveBackendId && (
+          <button type="button" onClick={exportTraining} disabled={isSending || exporting}
+            title={t("trainingExport.description")}
+            className="rounded px-2 py-1 text-xs text-text-secondary hover:bg-surface-hover disabled:opacity-50">
+            {t("trainingExport.download")}
+          </button>
+        )}
         <PanelToggle
           onToggle={toggleChatPanel}
           label={t("workbench.panel.collapseChat")}
