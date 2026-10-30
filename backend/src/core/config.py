@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # Application
     APP_NAME: str = Field(default="Petri Net Sim")
-    APP_VERSION: str = Field(default="1.1.0")
+    APP_VERSION: str = Field(default="1.2.0")
     APP_DEBUG: bool = Field(default=False)
     # Deployment environment. Drives production-only hardening: when set to
     # "stage" or "prod", insecure configuration fails startup (see

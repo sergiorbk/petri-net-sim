@@ -29,7 +29,7 @@ TOOL_PETRI_NET_SIM = "PetriNetSim"
 #: This product's own release. Must equal the version in
 #: ``frontend/package.json``, which is where the web application states it;
 #: ``test_composed_pnml_exporter`` reads that file and fails if the two drift.
-PETRI_NET_SIM_VERSION = "1.1.0"
+PETRI_NET_SIM_VERSION = "1.2.0"
 
 #: Rendered by the ``toolspecific`` template macro. A one-element tuple, kept
 #: as a tuple (rather than a bare dict) so ``_toolspecific.pnml.j2``'s
