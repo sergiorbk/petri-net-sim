@@ -44,3 +44,30 @@ Configuration comes from environment variables or a local `.env`; the
 On Windows, add `--loop src.core.event_loop:new_event_loop` to the Uvicorn
 command. PostgreSQL checkpointing requires a selector event loop there; Uvicorn's
 default proactor loop cannot open Psycopg asynchronous connections.
+
+
+### Training data and network images
+
+The chat header's **Training ZIP** action downloads the current session's
+PNML, visible conversation, available verification evidence, a network-only
+PNG and geometry from the same renderer. Editor **Export > PNG** renders the
+selected model without application controls. The image uses model coordinates;
+it is not an editor screenshot and its geometry is not a verified detection dataset.
+
+MCP exposes `export_training_data(title, context, conversation, tool_calls)`
+and `export_image(title)`. Both return `filename`, `media_type` and
+`data_base64`; decode the base64 to save the file. Supply only actual client
+messages or tool records when available. The application cannot recover an
+external client's chat. Missing records are declared in `manifest.json`.
+
+Archives follow the shared training-bundle schema, include SHA-256 hashes,
+and start with `unreviewed` acceptance and `unknown` verification. A completed
+simulation is evidence, not automatic acceptance. The live MCP ledger keeps
+the latest 200 calls of that session and excludes export payloads. Credential
+fields and common credential patterns are redacted. No settings or environment
+snapshot is exported. Review a bundle before including it in a training corpus.
+
+Run `uv run python scripts/smoke_mcp_workflow.py --output <directory>` after
+building the frontend to verify real HTTP MCP modeling, simulation, PNML
+reopening, ZIP schema/hashes and authenticated ZIP/PNG downloads against an
+isolated temporary PostgreSQL instance. Docker is required.

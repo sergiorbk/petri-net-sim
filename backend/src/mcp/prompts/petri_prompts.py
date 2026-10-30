@@ -15,3 +15,8 @@ def register_petri_prompts(mcp: FastMCP) -> None:
     def build_production_line(description: str) -> str:
         """Build a Petri net model for a production/manufacturing line."""
         return f"{modeling_prompt()}\n\nRequested production line:\n{description}"
+
+    @mcp.prompt()
+    def reconstruct_petri_net(description: str) -> str:
+        """Reconstruct a Petri model from an image supplied by the client."""
+        return f"{modeling_prompt()}\n\nClient image reconstruction task:\n{description}"

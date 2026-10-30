@@ -338,6 +338,8 @@ _EXPLICIT_OPERATIONS: dict[str, Callable[..., Any]] = {
     "get_pattern_bounds": ops.op_get_pattern_bounds,
     "optimize_network": ops.op_optimize_network,
     "export_pnml": ops.op_export_pnml,
+    "export_image": ops.op_export_image,
+    "export_training_data": ops.op_export_training_data,
     "import_pnml": ops.op_import_pnml,
     "run_simulation": ops.op_run_simulation,
     "get_simulation_results": ops.op_get_simulation_results,

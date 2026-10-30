@@ -10,6 +10,8 @@ import argparse
 import asyncio
 import base64
 import hashlib
+import io
+import zipfile
 import json
 import os
 from pathlib import Path
@@ -54,7 +56,7 @@ def markings(result: str) -> dict[str, int]:
     return {name: int(value) for name, value in re.findall(r"^  ([^:\n]+): marking=(\d+),", result, re.MULTILINE)}
 
 
-async def workflow(base_url: str, output: Path) -> dict:
+async def workflow(base_url: str, output: Path, environment: dict) -> dict:
     transcript: list[dict] = []
     with httpx.Client(base_url=base_url, timeout=10) as http:
         response = http.post("/api/v1/auth/api-keys", json={"name": "isolated MCP workflow"})
@@ -80,7 +82,8 @@ async def workflow(base_url: str, output: Path) -> dict:
                         text = "\n".join(item.text for item in content.contents)
                         resources.append({"uri": uri, "bytes": len(text.encode()),
                                           "sha256": hashlib.sha256(text.encode()).hexdigest()})
-                assert len(resources) == 5, "Expected four shared guides and the application adapter"
+                from petri_modeling_skills import catalog
+                assert {row["uri"] for row in resources} == {row["uri"] for row in catalog()} | {"petri://skills/petri-net-sim-api"}
                 prompt = await client.get_prompt("build_queueing_system", {"description": "Finite six-token service"})
                 assert prompt.messages, "Shared task prompt was empty"
 
@@ -88,7 +91,7 @@ async def workflow(base_url: str, output: Path) -> dict:
                     print("MCP_TOOL " + tool_name, flush=True)
                     result = await client.call_tool(tool_name, arguments)
                     text = "\n".join(item.text for item in result.content if item.type == "text")
-                    transcript.append({"tool": tool_name, "arguments": arguments, "result": text, "isError": result.isError})
+                    transcript.append({"tool": tool_name, "arguments": arguments, "result": text if tool_name not in {"export_training_data", "export_image"} else {"payload_sha256": hashlib.sha256(text.encode()).hexdigest()}, "isError": result.isError})
                     if result.isError or text.startswith(("Error:", "ERROR:")):
                         raise AssertionError(f"{tool_name}: {text}")
                     return text
@@ -134,7 +137,81 @@ async def workflow(base_url: str, output: Path) -> dict:
                 assert "Service: buffer=0," in second_result, second_result
                 assert "Completed: total_consumed=6" in second_result, second_result
 
-                return {"endpoint": base_url + "/mcp", "frontendStatus": home.status_code,
+                bundle = json.loads(await call("export_training_data", title="Finite six-token service", context={"task": "Process six tokens and preserve the model across reopening"}))
+                bundle_bytes = base64.b64decode(bundle["data_base64"])
+                (output / bundle["filename"]).write_bytes(bundle_bytes)
+                from src.services.training_export import validate
+                from PIL import Image
+                with zipfile.ZipFile(io.BytesIO(bundle_bytes)) as archive:
+                    assert archive.testzip() is None
+                    manifest = json.loads(archive.read("manifest.json"))
+                    validate(manifest)
+                    assert manifest["status"] == "unreviewed"
+                    assert manifest["capture_scope"] == {"conversation": "unavailable", "tool_calls": "application"}
+                    for artifact in manifest["files"]:
+                        assert hashlib.sha256(archive.read(artifact["name"])).hexdigest() == artifact["sha256"]
+                    geometry = json.loads(archive.read("model-geometry.json"))
+                    validate(geometry, "modelGeometry")
+                    png = Image.open(io.BytesIO(archive.read("network.png")))
+                    assert png.size == (geometry["image"]["width"], geometry["image"]["height"])
+                    for element in geometry["elements"]:
+                        bounds = element["bounds"]
+                        assert 0 <= bounds["x"] <= bounds["x"]+bounds["width"] <= png.width
+                        assert 0 <= bounds["y"] <= bounds["y"]+bounds["height"] <= png.height
+                    trace = [json.loads(row) for row in archive.read("tool-calls.jsonl").splitlines()]
+                    assert trace[-1]["tool"] == "run_simulation"
+                    assert len(trace) == len(transcript)-1
+                    verification = json.loads(archive.read("verification.json"))
+                    validate(verification, "verification")
+                    assert verification["status"] == "unknown"
+                    assert "total_consumed=6" in verification["simulation"]["results"]["summary"]
+                    assert document_shape(archive.read("model.pnml").decode()) == document_shape(reopened_xml)
+                    archive_count = len(archive.namelist())
+                image = json.loads(await call("export_image", title="Finite six-token service"))
+                image_bytes = base64.b64decode(image["data_base64"])
+                (output / image["filename"]).write_bytes(image_bytes)
+                assert Image.open(io.BytesIO(image_bytes)).format == "PNG"
+
+                # Exercise the same authenticated HTTP download routes used by UI.
+                from src.services.petri.importer import parse_pnml
+                net_data, warnings = parse_pnml(reopened_xml)
+                assert not warnings
+                # Chat sessions are created by LLM requests, not a public POST.
+                # Seed only this isolated download fixture through its repository.
+                from sqlalchemy.engine import URL
+                from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+                from src.infrastructure.postgres.repositories.session_repository import SessionRepository
+                with httpx.Client(base_url=base_url) as http:
+                    owner_response = http.get("/api/v1/auth/me")
+                    owner_response.raise_for_status()
+                    owner_id = uuid.UUID(owner_response.json()["data"]["id"])
+                engine = create_async_engine(URL.create("postgresql+asyncpg", username=environment["DB_USER"],
+                    password=environment["DB_PASSWORD"], host="127.0.0.1", port=int(environment["DB_PORT"]), database=environment["DB_NAME"]))
+                session_id = hashlib.sha256(uuid.uuid4().bytes).hexdigest()
+                try:
+                    async with async_sessionmaker(engine)() as db:
+                        repo = SessionRepository(db)
+                        await repo.get_or_create(session_id, owner_id)
+                        await repo.update_title(session_id, "Finite service download")
+                        await repo.update_net_data(session_id, net_data)
+                        await db.commit()
+                finally:
+                    await engine.dispose()
+                with httpx.Client(base_url=base_url, timeout=20) as http:
+                    rest_zip = http.post(f"/api/v1/sessions/{session_id}/training-data", json={"conversation": [{"role": "user", "content": "Process six tokens"}]})
+                    rest_zip.raise_for_status()
+                    assert rest_zip.headers["content-type"] == "application/zip"
+                    with zipfile.ZipFile(io.BytesIO(rest_zip.content)) as rest_archive:
+                        validate(json.loads(rest_archive.read("manifest.json")))
+                        assert rest_archive.read("conversation.jsonl")
+                    rest_png = http.post("/api/v1/sessions/exports/image", json={"net_data": net_data, "title": "Finite service download"})
+                    rest_png.raise_for_status()
+                    assert rest_png.headers["content-type"] == "image/png"
+                    assert Image.open(io.BytesIO(rest_png.content)).format == "PNG"
+
+                return {"trainingArchiveFiles": archive_count, "trainingArchiveSha256": hashlib.sha256(bundle_bytes).hexdigest(),
+                        "trainingTraceCalls": len(trace), "pngDimensions": list(png.size), "geometryElements": len(geometry["elements"]),
+                        "downloadRoutesStatus": [rest_zip.status_code, rest_png.status_code], "endpoint": base_url + "/mcp", "frontendStatus": home.status_code,
                         "initialTokens": 6, "places": 2, "transitions": 1, "arcs": 2,
                         "firstFinalMarkings": first_markings, "reopenedFinalMarkings": second_markings,
                         "firstThroughput": int(re.search(r"Completed: total_consumed=(\d+)", first_result).group(1)),
@@ -216,7 +293,7 @@ def main() -> None:
                                                 "-d", "petri_mcp_smoke", "-Atc", "SELECT COUNT(*) FROM checkpoint_migrations"],
                                                capture_output=True, text=True, check=True)
             assert int(checkpoint_schema.stdout.strip()) > 0, "PostgreSQL checkpointer did not initialize"
-            result = asyncio.run(workflow(base_url, output))
+            result = asyncio.run(workflow(base_url, output, environment))
             result["checkpointSchemaReady"] = True
             (output / "summary.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
             print(json.dumps(result, indent=2), flush=True)

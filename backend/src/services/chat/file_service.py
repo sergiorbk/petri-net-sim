@@ -1,5 +1,7 @@
 """File service for temporary PNML file storage and download."""
 
+import base64
+
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -48,6 +50,28 @@ class FileService:
 
         logger.info(f"Stored PNML file {generated_file.id} (expires {expires_at})")
         return str(generated_file.id)
+
+    async def store_download(self, session_id: str, user_id: UUID, download: dict) -> str:
+        """Store an allowlisted binary artifact in the existing text store.
+
+        Binary MIME types explicitly use base64 at rest; XML stays plain text.
+        """
+        if download["media_type"] not in {"image/png", "application/zip"}:
+            raise ValueError("Unsupported binary export type")
+        base64.b64decode(download["data_base64"], validate=True)
+        generated = await self._repo.create(
+            session_id=session_id, user_id=user_id, filename=download["filename"],
+            content=download["data_base64"], content_type=download["media_type"],
+            expires_at=datetime.now(UTC) + timedelta(hours=DEFAULT_TTL_HOURS),
+        )
+        await self._session.commit()
+        return str(generated.id)
+
+    @staticmethod
+    def download_bytes(generated_file) -> bytes | str:
+        if generated_file.content_type in {"image/png", "application/zip"}:
+            return base64.b64decode(generated_file.content, validate=True)
+        return generated_file.content
 
     async def get_file(self, file_id: UUID, user_id: UUID) -> GeneratedFile | None:
         """Get a file by ID, verifying ownership and that it hasn't expired."""

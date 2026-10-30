@@ -959,3 +959,53 @@ async def simulate_shared_session(
     _validate_simulation_request(net_data, simulation_time)
 
     return _make_simulation_response(net_data, simulation_time, time_step, snapshot_interval, animation_delay)
+
+
+class TrainingExportRequest(BaseModel):
+    context: dict[str, Any] = Field(default_factory=dict)
+    conversation: list[dict[str, Any]] | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+
+
+@router.post("/{session_id}/training-data", summary="Download task-scoped training data")
+async def export_session_training_data(
+    session_id: str,
+    body: TrainingExportRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_postgres_session),
+) -> Response:
+    from src.services.training_export import build_training_bundle, attachment
+    from starlette.concurrency import run_in_threadpool
+    instance = await SessionRepository(session).get_by_id(session_id)
+    if not instance or instance.user_id != user.id:
+        raise NotFoundException(resource="Session", identifier=session_id)
+    messages = body.conversation
+    origin = "client-provided" if messages is not None else "application"
+    if messages is None:
+        messages = [{"role": row["role"], "content": row.get("content", "")}
+                    for row in (instance.messages or []) if row.get("role") in {"user", "assistant"}]
+    try:
+        data, name = await run_in_threadpool(
+            build_training_bundle, instance.net_data or {}, instance.title or "Petri session",
+            context=body.context, conversation=messages, tool_calls=body.tool_calls,
+            conversation_origin=origin, tool_origin="client-provided" if body.tool_calls else "unavailable",
+        )
+    except ValueError as exc:
+        raise BadRequestException("Invalid training export data") from exc
+    return attachment(data, name, "application/zip")
+
+
+class NetworkImageRequest(BaseModel):
+    net_data: dict[str, Any]
+    title: str = "Petri network"
+
+
+@router.post("/exports/image", summary="Render current editor model as PNG")
+async def export_network_image(body: NetworkImageRequest, user: User = Depends(get_current_user)) -> Response:
+    from src.services.training_export import render_network, attachment, filename
+    from starlette.concurrency import run_in_threadpool
+    try:
+        data, _ = await run_in_threadpool(render_network, body.net_data)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise BadRequestException("Invalid network image data") from exc
+    return attachment(data, filename(body.title, ".png"), "image/png")

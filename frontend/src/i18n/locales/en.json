@@ -309,6 +309,10 @@
       "xml": {
         "label": "XML (.xml)",
         "description": "The same PNML document, saved with a .xml extension for tools that require one"
+      },
+      "png": {
+        "label": "PNG",
+        "description": "Network image with model coordinates, without editor controls."
       }
     },
     "import": {
@@ -597,5 +601,10 @@
       "tokenCounts": "Token counts",
       "activeBuffers": "Active buffers"
     }
+  },
+  "trainingExport": {
+    "download": "Training ZIP",
+    "description": "Export this session for review: model, conversation, available evidence and network image. Status starts unreviewed.",
+    "failed": "Could not export this session"
   }
 }

@@ -107,9 +107,10 @@ async def tool_node(state: AgentState) -> dict:  # NOSONAR
     # on this surface (see operations.py's documented-divergence list and
     # PetriNetSession's own docstring). MCP's session store leaves the
     # session-level switch at its default (True) instead.
-    session = PetriNetSession.from_net_data(
-        state.get("net_data", {}) or {}, auto_optimize=False
-    )
+    source_net = dict(state.get("net_data", {}) or {})
+    pending_downloads = list(source_net.pop("_pending_downloads", []))
+    source_net.pop("_last_pnml_export", None)
+    session = PetriNetSession.from_net_data(source_net, auto_optimize=False)
     # In Object mode this turn's net is destined to be cut into one
     # Petri-object per pattern, and the seams it gets cut along are exactly
     # the hand-off places an optimize_network call would fuse away first.
@@ -149,10 +150,25 @@ async def tool_node(state: AgentState) -> dict:  # NOSONAR
                 # TypeError naming the internal op_* function instead of a
                 # clean ToolMessage.
                 known_args, dropped = spec.filter_kwargs(tool_args)
-                op_result = spec.operation(session, **known_args)
+                if spec.name == "export_training_data" and "conversation" not in known_args:
+                    from src.services.llm.message_content import content_to_text
+                    known_args["conversation"] = [
+                        {"role": "user" if message.type == "human" else "assistant", "content": content_to_text(message.content)}
+                        for message in state.get("messages", [])
+                        if message.type in {"human", "ai"} and message.content
+                    ]
+                    session._export_conversation_origin = "application"
+                if spec.name in {"export_training_data", "export_image"}:
+                    from starlette.concurrency import run_in_threadpool
+                    op_result = await run_in_threadpool(spec.operation, session, **known_args)
+                else:
+                    op_result = spec.operation(session, **known_args)
                 if isinstance(op_result, ToolError):
                     result = op_result.message
                     status = "error"
+                elif spec.name in {"export_training_data", "export_image"}:
+                    pending_downloads.append(json.loads(op_result))
+                    result = "Export ready. The application will provide the download link."
                 elif spec.name == "export_pnml":
                     # Chat's file-download convention (unlike MCP, which can
                     # just return the XML as the tool result): the raw PNML
@@ -242,6 +258,8 @@ async def tool_node(state: AgentState) -> dict:  # NOSONAR
                 name=last.name,
                 status="error",
             )
+    if pending_downloads:
+        net_data["_pending_downloads"] = pending_downloads
     if pending_pnml_export is not None:
         net_data["_last_pnml_export"] = pending_pnml_export
 
