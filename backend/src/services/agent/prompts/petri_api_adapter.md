@@ -27,8 +27,8 @@ it is ready.
 
 Timed tools accept `time_unit` with `s`, `min`, `h` or `d`. Pass the value in the
 unit the user supplied and set `time_unit` explicitly. The tools convert it; do
-not convert it a second time. For a generator use `rate` for items per time unit
-and `interval` for time between arrivals. Tool responses echo normalized values,
+not convert it a second time. For a generator, `rate` counts arrival events per time unit, `interval` is
+time between events, and `batch_size` is tokens emitted per arrival. Tool responses echo normalized values,
 which can be checked against the request.
 
 ## Petri-object API
