@@ -19,8 +19,8 @@ from PIL import Image, ImageDraw, ImageFont
 from src.services.petri.session import PetriNetSession
 from src.services.petri.exporter.geometry import PLACE_W, PLACE_H, TRANS_W, TRANS_H
 
-_SECRET_KEYS = re.compile(r"^(authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|credentials?|environment|config)$", re.I)
-_SECRET_TEXT = re.compile(r"(?i)(?:Bearer\s+\S+|sk-[\w-]{12,}|eyJ[\w-]+\.[\w-]+\.[\w-]+|(?:api[_-]?key|password|secret|access[_-]?token)\s*[:=]\s*[^\s,;]+)")
+_SECRET_KEYS = re.compile(r"^(authorization|api[_-]?key|(?:access|refresh|mcp|bearer)[_-]?token|token|password|secret|credentials?|environment|config)$", re.I)
+_SECRET_TEXT = re.compile(r"(?i)(?:Bearer\s+\S+|sk-[\w-]{12,}|eyJ[\w-]+\.[\w-]+\.[\w-]+|(?:api[_-]?key|password|secret|(?:access|refresh|mcp|bearer)[_-]?token|\btoken)[\"']?\s*[:=]\s*[^\s,;]+)")
 
 
 def sanitize(value):
@@ -151,7 +151,13 @@ def render_network(net_data):
         draw.line((x1, y1, x2, y2), fill=color, width=2)
         # Arrowhead at the target footprint, rather than hidden at its center.
         angle = math.atan2(y2-y1, x2-x1)
-        distance = max(1, min(b[2], b[3]) * scale / 2)
+        dx, dy = math.cos(angle), math.sin(angle)
+        rx, ry = b[2] * scale / 2, b[3] * scale / 2
+        if target in place_ids:
+            distance = 1 / math.sqrt((dx / rx) ** 2 + (dy / ry) ** 2)
+        else:
+            distance = min(rx / abs(dx) if abs(dx) > 1e-12 else math.inf,
+                           ry / abs(dy) if abs(dy) > 1e-12 else math.inf)
         ax, ay = x2-distance*math.cos(angle), y2-distance*math.sin(angle)
         triangle = [(ax, ay), (ax-8*math.cos(angle-.5), ay-8*math.sin(angle-.5)), (ax-8*math.cos(angle+.5), ay-8*math.sin(angle+.5))]
         if not is_fusion:

@@ -126,3 +126,39 @@ async def test_owner_route_rejects_another_users_session():
         unpack(response.body)
         assert response.media_type == "application/zip"
         assert "Finite_service-training.zip" in response.headers["content-disposition"]
+
+
+@pytest.mark.parametrize("above", [True, False])
+def test_vertical_transition_arrowhead_remains_visible_outside_target(above):
+    net = PetriNet(name="Vertical arc")
+    source = net.add_place("Source", x=0, y=0 if above else 360)
+    target = net.add_transition("", x=14, y=180)
+    net.add_arc(source.id, target.id)
+    data, geometry = render_network(net.model_dump())
+    image = Image.open(io.BytesIO(data))
+    box = next(row["bounds"] for row in geometry["elements"] if row["id"] == target.id)
+    center_x = round(box["x"] + box["width"] / 2)
+    outside_y = round(box["y"] - 5 if above else box["y"] + box["height"] + 5)
+    # A shaft alone is two pixels wide. Both wings must survive the later
+    # filled-node drawing at the actual rectangular boundary.
+    assert image.getpixel((center_x - 2, outside_y)) == (51, 65, 85)
+    assert image.getpixel((center_x + 2, outside_y)) == (51, 65, 85)
+
+
+def test_opaque_structured_access_tokens_are_redacted_but_markings_remain():
+    opaque = "qP7Va3zxN1rM9bDtL5wH0sK6cJ2uF8eR4yA0oG9nBvX"
+    calls = [{"tool": "request", "arguments": {"token": opaque, "mcp_token": opaque,
+              "bearer_token": opaque, "nested": {"TOKEN": opaque}, "tokens": 6},
+              "timestamp": "2026-10-30T00:00:00Z", "origin": "client-provided"}]
+    conversation = [{"role": "user", "content": "6 tokens. " + " ".join(
+        f'{key}={opaque}; "{key}": "{opaque}";' for key in ("token", "mcp_token", "bearer_token", "refresh_token")
+    )}]
+    data, _ = build_training_bundle(model(), "Token redaction", tool_calls=calls, tool_origin="client-provided",
+                                    conversation=conversation, conversation_origin="client-provided")
+    archive, _ = unpack(data)
+    for name in archive.namelist():
+        assert opaque.encode() not in archive.read(name)
+    arguments = json.loads(archive.read("tool-calls.jsonl"))["arguments"]
+    assert b"6 tokens" in archive.read("conversation.jsonl")
+    assert arguments["tokens"] == 6
+    assert arguments["token"] == arguments["mcp_token"] == arguments["bearer_token"] == "[REDACTED]"
