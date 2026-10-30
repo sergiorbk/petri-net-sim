@@ -27,7 +27,6 @@ WORKDIR /app
 # --- Python deps (uv-managed, mirrors backend/Dockerfile) ---
 RUN pip install --no-cache-dir uv
 COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
-COPY backend/vendor/petri-modeling-skills/ vendor/petri-modeling-skills/
 RUN uv sync --frozen --no-dev
 COPY backend/ .
 

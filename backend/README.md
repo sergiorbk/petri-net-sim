@@ -22,7 +22,6 @@ Normally you run this through the monorepo's Compose stack: see the
 ## Standalone development
 
 ```bash
-git submodule update --init --recursive # shared modeling package
 uv sync --extra dev                    # dependencies, including test extras
 docker compose up -d postgres          # a database, from the root compose file
 uv run alembic upgrade head            # migrations
@@ -71,3 +70,7 @@ Run `uv run python scripts/smoke_mcp_workflow.py --output <directory>` after
 building the frontend to verify real HTTP MCP modeling, simulation, PNML
 reopening, ZIP schema/hashes and authenticated ZIP/PNG downloads against an
 isolated temporary PostgreSQL instance. Docker is required.
+
+Shared modeling skills are installed by uv from a versioned GitHub Release wheel.
+The URL and SHA-256 are pinned in pyproject.toml and uv.lock; a plain clone and
+the usual uv sync command are sufficient. No PyPI account or submodule is needed.
