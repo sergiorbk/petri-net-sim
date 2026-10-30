@@ -1,3 +1,0 @@
-[submodule "backend/vendor/petri-modeling-skills"]
-	path = backend/vendor/petri-modeling-skills
-	url = https://github.com/sergiorbk/petri-modeling-skills.git
