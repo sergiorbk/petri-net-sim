@@ -561,7 +561,11 @@ def _parse_place(
             tokens = parsed
 
     x, y = _extract_center_position(raw, "place")
-    return {"id": id_, "name": name, "tokens": tokens, "graphics": {"x": x, "y": y}}
+    place = {"id": id_, "name": name, "tokens": tokens, "graphics": {"x": x, "y": y}}
+    semantic_tag = _text_of(_toolspecific_child(raw, "semanticTag"))
+    if semantic_tag:
+        place["tag"] = semantic_tag
+    return place
 
 
 def _parse_transition(raw: ET.Element, registry: _IdRegistry, warn: WarnFn) -> dict:

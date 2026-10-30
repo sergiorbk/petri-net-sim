@@ -40,3 +40,7 @@ Configuration comes from environment variables or a local `.env`; the
 | Bundled (default) | `uvicorn main:app` | `http://host:6201/mcp` |
 | Standalone HTTP | `uv run python mcp_server.py` | `http://host:8001/mcp` |
 | Standalone stdio | `uv run python mcp_server.py --stdio` | n/a |
+
+On Windows, add `--loop src.core.event_loop:new_event_loop` to the Uvicorn
+command. PostgreSQL checkpointing requires a selector event loop there; Uvicorn's
+default proactor loop cannot open Psycopg asynchronous connections.

@@ -5,6 +5,7 @@ export interface PetriPlace {
   id: string;
   name: string;
   tokens: number;
+  tag?: string | null;
   graphics: { x: number; y: number };
   /** Owning object frame's id, or undefined for a free (unframed) place. */
   objectId?: string;

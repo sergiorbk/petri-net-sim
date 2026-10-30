@@ -20,9 +20,11 @@
     <text>{{ p.tokens }}</text>
   </initialMarking>
   {% endif %}
-  {# A plain place has nothing left to say in toolspecific once <coordinates> #}
-  {# is gone (PNML ISO conformance contract, decision 1): no block at all, #}
-  {# same precedent as a NORMAL arc's own toolspecific-free arc() below. #}
+  {% if p.tag %}
+  {% call ts.toolspecific() %}
+    <semanticTag>{{ p.tag }}</semanticTag>
+  {% endcall %}
+  {% endif %}
   <graphics>
     <position x="{{ (p.graphics.x + PLACE_W / 2) | round_half_up }}" y="{{ (p.graphics.y + PLACE_H / 2) | round_half_up }}"/>
   </graphics>
@@ -96,6 +98,9 @@
   </name>
   {% call ts.toolspecific() %}
     <referenceRole>{{ role }}</referenceRole>
+    {% if role == 'fusion' and r.tag %}
+    <semanticTag>{{ r.tag }}</semanticTag>
+    {% endif %}
     {% if r.fused_marking %}
     <fusedInitialMarking>{{ r.fused_marking }}</fusedInitialMarking>
     {% endif %}
