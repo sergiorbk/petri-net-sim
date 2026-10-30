@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     ReactFlow,
     Background,
@@ -68,9 +68,26 @@ export function ReviewCanvas({
         endX: number;
         endY: number;
     } | null>(null);
-    const rf = useRef<Pick<ReactFlowInstance, "screenToFlowPosition"> | null>(
-        null,
-    );
+    const rf = useRef<{
+        screenToFlowPosition: ReactFlowInstance["screenToFlowPosition"];
+        fitView: (options?: { padding?: number }) => Promise<boolean>;
+    } | null>(null);
+    const container = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!container.current || typeof ResizeObserver === "undefined") return;
+        let timer: ReturnType<typeof setTimeout>;
+        const observer = new ResizeObserver(() => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                void rf.current?.fitView({ padding: 0.15 });
+            }, 100);
+        });
+        observer.observe(container.current);
+        return () => {
+            clearTimeout(timer);
+            observer.disconnect();
+        };
+    }, []);
     const start = useRef<{
         screen: { x: number; y: number };
         flow: { x: number; y: number };
@@ -133,6 +150,7 @@ export function ReviewCanvas({
     }
     return (
         <div
+            ref={container}
             className="relative h-full min-h-64 w-full"
             aria-label={t("review.liveCanvas")}
             onPointerDownCapture={(event) => {
