@@ -5,8 +5,13 @@ description: Where the ISO/IEC 15909-2 PNML grammar lives in this repo and how e
 
 # PNML conformance in this application
 
-Read the [shared PNML guide](../../../backend/vendor/petri-modeling-skills/petri_modeling_skills/skills/pnml-standard/SKILL.md)
-for the common document rules. Initialize submodules first if it is absent.
+Read the installed shared PNML guide for common document rules. From `backend/`:
+
+```bash
+uv run python -c "from petri_modeling_skills import read_resource; print(read_resource('petri://skills/pnml-standard'))"
+```
+
+The normal dependency installation supplies this package; no submodule is needed.
 
 Repository-specific entry points:
 

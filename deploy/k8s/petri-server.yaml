@@ -14,8 +14,8 @@
 #
 #   git clone https://github.com/StetsenkoInna/PetriObjModelPaint
 #   cd PetriObjModelPaint
-#   docker build -f petri-server/Dockerfile -t your-registry/petri-server:2.2.2 .
-#   docker push your-registry/petri-server:2.2.2
+#   docker build -f petri-server/Dockerfile -t your-registry/petri-server:2.5.0 .
+#   docker push your-registry/petri-server:2.5.0
 #
 # The build context is the repository ROOT, not petri-server/: it is a Maven
 # reactor build and needs every module's pom.xml on disk.
@@ -41,7 +41,7 @@ spec:
     spec:
       containers:
         - name: petri-server
-          image: your-registry/petri-server:2.2.2
+          image: your-registry/petri-server:2.5.0
           ports:
             - name: http
               containerPort: 8080

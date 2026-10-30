@@ -975,6 +975,8 @@ async def export_session_training_data(
     session: AsyncSession = Depends(get_postgres_session),
 ) -> Response:
     from src.services.training_export import build_training_bundle, attachment
+    from src.services.auth.contributor import contributor_profile
+    from src.api.versions.v1.routers.training import decode_archive
     from starlette.concurrency import run_in_threadpool
     instance = await SessionRepository(session).get_by_id(session_id)
     if not instance or instance.user_id != user.id:
@@ -988,6 +990,8 @@ async def export_session_training_data(
         data, name = await run_in_threadpool(
             build_training_bundle, instance.net_data or {}, instance.title or "Petri session",
             context=body.context, conversation=messages, tool_calls=body.tool_calls,
+            archive=decode_archive(instance.net_data["_training_archive_base64"]) if (instance.net_data or {}).get("_training_archive_base64") else None,
+            contributor=contributor_profile(user),
             conversation_origin=origin, tool_origin="client-provided" if body.tool_calls else "unavailable",
         )
     except ValueError as exc:
@@ -998,14 +1002,16 @@ async def export_session_training_data(
 class NetworkImageRequest(BaseModel):
     net_data: dict[str, Any]
     title: str = "Petri network"
+    options: dict[str, Any] = Field(default_factory=dict)
 
 
 @router.post("/exports/image", summary="Render current editor model as PNG")
 async def export_network_image(body: NetworkImageRequest, user: User = Depends(get_current_user)) -> Response:
-    from src.services.training_export import render_network, attachment, filename
+    from src.services.training_export import attachment, filename
+    from src.services.training_images import export_images
     from starlette.concurrency import run_in_threadpool
     try:
-        data, _ = await run_in_threadpool(render_network, body.net_data)
+        data, media, suffix = await run_in_threadpool(export_images, body.net_data, body.options)
     except (ValueError, KeyError, TypeError) as exc:
         raise BadRequestException("Invalid network image data") from exc
-    return attachment(data, filename(body.title, ".png"), "image/png")
+    return attachment(data, filename(body.title, suffix), media)

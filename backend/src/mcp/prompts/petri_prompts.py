@@ -20,3 +20,9 @@ def register_petri_prompts(mcp: FastMCP) -> None:
     def reconstruct_petri_net(description: str) -> str:
         """Reconstruct a Petri model from an image supplied by the client."""
         return f"{modeling_prompt()}\n\nClient image reconstruction task:\n{description}"
+
+    @mcp.prompt()
+    def review_petri_model(task: str = "") -> str:
+        """Review a portable training archive and append exact-version evidence."""
+        from petri_modeling_skills import read_resource
+        return read_resource("petri://skills/petri-training-review") + "\n\n" + modeling_prompt() + "\n\nReview task:\n" + task

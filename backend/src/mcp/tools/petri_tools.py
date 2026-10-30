@@ -69,12 +69,12 @@ def _build_tool_fn(spec: ToolSpec) -> Callable:
         # **kwargs) would otherwise hard-fail with a TypeError naming the
         # internal op_* function instead of a clean tool result.
         known, dropped = spec.filter_kwargs(kwargs)
-        if spec.name in {"export_training_data", "export_image"}:
+        if spec.name in {"export_training_data", "export_image", "export_training_review", "training_bundle_image", "open_training_bundle", "inspect_training_bundle", "compare_training_revisions", "run_training_simulation"}:
             from starlette.concurrency import run_in_threadpool
             result = await run_in_threadpool(spec.operation, session, **known)
         else:
             result = spec.operation(session, **known)
-        if spec.name not in {"export_training_data", "export_image"}:
+        if spec.name not in {"export_training_data", "export_image", "export_training_review", "training_bundle_image", "open_training_bundle", "inspect_training_bundle", "compare_training_revisions", "run_training_simulation"}:
             from src.services.training_export import sanitize, utc_now
             trace = getattr(session, "_export_tool_trace", [])
             trace.append(sanitize({"tool": spec.name, "arguments": known, "result": str(result),

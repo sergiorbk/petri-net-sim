@@ -1719,10 +1719,10 @@ wheels = [
 
 [[package]]
 name = "petri-modeling-skills"
-version = "0.3.0"
-source = { url = "https://github.com/sergiorbk/petri-modeling-skills/releases/download/v0.3.0/petri_modeling_skills-0.3.0-py3-none-any.whl" }
+version = "0.4.0"
+source = { url = "https://github.com/sergiorbk/petri-modeling-skills/releases/download/v0.4.0/petri_modeling_skills-0.4.0-py3-none-any.whl" }
 wheels = [
-    { url = "https://github.com/sergiorbk/petri-modeling-skills/releases/download/v0.3.0/petri_modeling_skills-0.3.0-py3-none-any.whl", hash = "sha256:b2d0a02052c07c1959817da8ece54a4d847cec3cd88b9ece15676c203fe03fa7" },
+    { url = "https://github.com/sergiorbk/petri-modeling-skills/releases/download/v0.4.0/petri_modeling_skills-0.4.0-py3-none-any.whl", hash = "sha256:af7ebd4ab6f6b2e379eda36f0d8d6a210e4bb5d5f8ab579f31a60ddfb08cedea" },
 ]
 
 [package.metadata]
@@ -1806,7 +1806,7 @@ requires-dist = [
     { name = "langgraph-checkpoint-postgres", specifier = ">=2.0.0" },
     { name = "lxml", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "mcp", specifier = ">=1.6.0" },
-    { name = "petri-modeling-skills", url = "https://github.com/sergiorbk/petri-modeling-skills/releases/download/v0.3.0/petri_modeling_skills-0.3.0-py3-none-any.whl" },
+    { name = "petri-modeling-skills", url = "https://github.com/sergiorbk/petri-modeling-skills/releases/download/v0.4.0/petri_modeling_skills-0.4.0-py3-none-any.whl" },
     { name = "pillow", specifier = ">=12.2.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1.0" },
     { name = "pydantic", specifier = ">=2.12.5" },

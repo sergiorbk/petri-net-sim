@@ -29,6 +29,8 @@ INTERNAL_NET_KEYS = frozenset({
     # (and previously leaked verbatim) to any GET /net response, a
     # share/public snapshot view, or a simulate request body.
     "_active_object_id",
+    "_training_archive_base64",
+    "_training_interactive_runs",
 })
 
 

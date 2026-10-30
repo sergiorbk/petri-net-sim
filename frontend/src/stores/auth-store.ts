@@ -18,6 +18,7 @@ import type {
 type AuthActionResult = { ok: true } | { ok: false; error: string };
 
 export interface UpdateProfilePayload {
+  contributor?: Record<string, string>;
   name?: string;
   display_name?: string | null;
   work_type?: string | null;

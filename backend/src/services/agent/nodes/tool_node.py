@@ -110,7 +110,13 @@ async def tool_node(state: AgentState) -> dict:  # NOSONAR
     source_net = dict(state.get("net_data", {}) or {})
     pending_downloads = list(source_net.pop("_pending_downloads", []))
     source_net.pop("_last_pnml_export", None)
+    training_archive = source_net.pop("_training_archive_base64", None)
+    interactive_runs = source_net.pop("_training_interactive_runs", [])
     session = PetriNetSession.from_net_data(source_net, auto_optimize=False)
+    if training_archive:
+        from src.api.versions.v1.routers.training import decode_archive
+        session._training_archive = decode_archive(training_archive)
+    session._training_interactive_runs = interactive_runs
     # In Object mode this turn's net is destined to be cut into one
     # Petri-object per pattern, and the seams it gets cut along are exactly
     # the hand-off places an optimize_network call would fuse away first.
@@ -150,7 +156,7 @@ async def tool_node(state: AgentState) -> dict:  # NOSONAR
                 # TypeError naming the internal op_* function instead of a
                 # clean ToolMessage.
                 known_args, dropped = spec.filter_kwargs(tool_args)
-                if spec.name == "export_training_data" and "conversation" not in known_args:
+                if spec.name in {"export_training_data", "export_training_review"} and "conversation" not in known_args:
                     from src.services.llm.message_content import content_to_text
                     known_args["conversation"] = [
                         {"role": "user" if message.type == "human" else "assistant", "content": content_to_text(message.content)}
@@ -158,7 +164,7 @@ async def tool_node(state: AgentState) -> dict:  # NOSONAR
                         if message.type in {"human", "ai"} and message.content
                     ]
                     session._export_conversation_origin = "application"
-                if spec.name in {"export_training_data", "export_image"}:
+                if spec.name in {"export_training_data", "export_image", "export_training_review", "training_bundle_image", "run_training_simulation", "open_training_bundle", "inspect_training_bundle", "compare_training_revisions"}:
                     from starlette.concurrency import run_in_threadpool
                     op_result = await run_in_threadpool(spec.operation, session, **known_args)
                 else:
@@ -166,7 +172,7 @@ async def tool_node(state: AgentState) -> dict:  # NOSONAR
                 if isinstance(op_result, ToolError):
                     result = op_result.message
                     status = "error"
-                elif spec.name in {"export_training_data", "export_image"}:
+                elif spec.name in {"export_training_data", "export_image", "export_training_review", "training_bundle_image"}:
                     pending_downloads.append(json.loads(op_result))
                     result = "Export ready. The application will provide the download link."
                 elif spec.name == "export_pnml":
@@ -260,6 +266,10 @@ async def tool_node(state: AgentState) -> dict:  # NOSONAR
             )
     if pending_downloads:
         net_data["_pending_downloads"] = pending_downloads
+    if getattr(session, "_training_archive", None):
+        import base64
+        net_data["_training_archive_base64"] = base64.b64encode(session._training_archive).decode("ascii")
+        net_data["_training_interactive_runs"] = getattr(session, "_training_interactive_runs", [])
     if pending_pnml_export is not None:
         net_data["_last_pnml_export"] = pending_pnml_export
 

@@ -582,6 +582,10 @@ def _parse_transition(raw: ET.Element, registry: _IdRegistry, warn: WarnFn) -> d
     std_dev: float = 0
     probability: Optional[float] = None
 
+    if ts is not None and _attr(ts, "tool") == TOOL_PETRI_OBJ_MODEL:
+        # Desktop omissions mean deterministic delay and priority zero.
+        distribution, mean_delay, priority = "det", 0, 0
+
     if ts is not None:
         priority_el = _child(ts, "priority")
         if priority_el is not None:
@@ -594,6 +598,7 @@ def _parse_transition(raw: ET.Element, registry: _IdRegistry, warn: WarnFn) -> d
                 # only that case warns.
                 priority = _maybe_int(p)
             else:
+                priority = 1
                 warn(
                     "bad-number",
                     f'{_describe("Transition", id_, name)} has a malformed priority '
@@ -607,7 +612,7 @@ def _parse_transition(raw: ET.Element, registry: _IdRegistry, warn: WarnFn) -> d
                 probability = p
                 distribution = None
 
-        if probability is None:
+        if probability is None or any(_child(ts, key) is not None for key in ("distribution", "delayMeanValue", "timeDelay")):
             dist_el = _child(ts, "distribution")
             if dist_el is not None:
                 dist_raw = _text_of(dist_el)

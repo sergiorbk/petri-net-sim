@@ -61,9 +61,14 @@ class BodySizeLimitMiddleware:
         self.app = app
         self._default_max = security_settings.SECURITY_MAX_BODY_BYTES
         self._large_max = security_settings.SECURITY_MAX_BODY_BYTES_LARGE
+        self._training_max = security_settings.SECURITY_MAX_BODY_BYTES_TRAINING
+        from src.core.config import settings
+        self._mcp_path = settings.MCP_PATH.rstrip("/")
         self._large_prefixes = security_settings.large_body_prefixes
 
     def _max_for(self, path: str) -> int:
+        if path == "/api/v1/training" or path.startswith("/api/v1/training/") or path == self._mcp_path or path.startswith(self._mcp_path + "/"):
+            return self._training_max
         if path.startswith(self._large_prefixes):
             return self._large_max
         return self._default_max

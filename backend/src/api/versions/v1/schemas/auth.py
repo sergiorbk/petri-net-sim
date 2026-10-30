@@ -34,6 +34,7 @@ class UserResponse(BaseModel):
     custom_instructions: str | None = Field(default=None, description="Custom instructions for the assistant")
     mcp_enabled: bool = Field(default=True, description="Whether API keys may reach the MCP server")
     http_api_enabled: bool = Field(default=True, description="Whether API keys may reach the OpenAI-compatible HTTP API")
+    contributor: dict[str, str] = Field(default_factory=dict)
 
     model_config = {"from_attributes": True}
 
@@ -41,6 +42,7 @@ class UserResponse(BaseModel):
     def from_user(cls, user: object) -> "UserResponse":
         """Build response from ORM User, extracting metadata fields."""
         meta: dict = getattr(user, "metadata_", None) or {}
+        from src.services.auth.contributor import contributor_profile
         return cls(
             id=getattr(user, "id"),
             email=getattr(user, "email"),
@@ -53,6 +55,7 @@ class UserResponse(BaseModel):
             custom_instructions=meta.get("custom_instructions"),
             mcp_enabled=integration_enabled(user, MCP),
             http_api_enabled=integration_enabled(user, HTTP_API),
+            contributor=contributor_profile(user),
         )
 
 
@@ -65,6 +68,15 @@ class UpdateProfileRequest(BaseModel):
     custom_instructions: str | None = Field(default=None, max_length=4000, description="Custom instructions for the assistant")
     mcp_enabled: bool | None = Field(default=None, description="Allow API keys to reach the MCP server")
     http_api_enabled: bool | None = Field(default=None, description="Allow API keys to reach the OpenAI-compatible HTTP API")
+    contributor: dict[str, str] | None = None
+
+    @field_validator("contributor")
+    @classmethod
+    def validate_contributor(cls, value):
+        from src.services.auth.contributor import FIELDS
+        if value is not None and (set(value) - set(FIELDS) or any(len(v) > 1000 for v in value.values())):
+            raise ValueError("Invalid contributor profile")
+        return value
 
 
 class SignupRequest(BaseModel):

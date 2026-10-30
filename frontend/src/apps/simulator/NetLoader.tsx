@@ -4,6 +4,7 @@ import { getUserNet } from "@/lib/nets-client";
 import { useEditorStore } from "@/stores/editor-store";
 import { useCanvasTabsStore } from "@/stores/canvas-tabs-store";
 import { SimulatorApp } from "./SimulatorApp";
+import { useTrainingStore } from "@/stores/training-store";
 
 export function NetLoader() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +37,7 @@ export function NetLoader() {
         return;
       }
       useEditorStore.getState().setNet(res.data.net_data);
+      useTrainingStore.getState().clear();
       useEditorStore.setState({ cloudNetId: id });
       setStatus("ready");
     });

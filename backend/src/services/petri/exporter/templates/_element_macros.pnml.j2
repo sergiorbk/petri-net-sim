@@ -6,7 +6,7 @@
 {% import "_toolspecific.pnml.j2" as ts %}
 
 {# `id`/`source_id`/`target_id` overrides let the composed exporter apply #}
-{# §2 namespacing at emission time, without mutating the domain model, a #}
+{# В§2 namespacing at emission time, without mutating the domain model, a #}
 {# ComposedModel's own places/transitions/arcs keep their original ids no #}
 {# matter what a given export run had to rename them to. #}
 
@@ -39,11 +39,12 @@
   {% call ts.toolspecific() %}
     {% if t.probability is not none %}
     <probability>{{ t.probability }}</probability>
-    {% elif t.distribution %}
+    {% endif %}
+    {% if t.distribution or t.mean_delay > 0 %}
     <timeDelay>{{ t.mean_delay }}</timeDelay>
     <delayMeanValue>{{ t.mean_delay }}</delayMeanValue>
-    <distribution>{{ t.distribution.value }}</distribution>
-    {% if t.distribution.value in ['norm', 'unif'] %}
+    <distribution>{{ t.distribution.value if t.distribution else 'det' }}</distribution>
+    {% if t.distribution and t.distribution.value in ['norm', 'unif'] %}
     <standardDeviation>{{ t.standard_deviation }}</standardDeviation>
     {% endif %}
     {% else %}
@@ -51,9 +52,7 @@
     <delayMeanValue>0</delayMeanValue>
     <distribution>det</distribution>
     {% endif %}
-    {% if t.probability is none %}
     <priority>{{ t.priority }}</priority>
-    {% endif %}
   {% endcall %}
   <graphics>
     <position x="{{ (t.graphics.x + TRANS_W / 2) | round_half_up }}" y="{{ (t.graphics.y + TRANS_H / 2) | round_half_up }}"/>
@@ -80,7 +79,7 @@
 {% endmacro %}
 
 {# A `<referencePlace>`/`<referenceTransition>` never carries an #}
-{# `<initialMarking>` (§8.3), a reference node stands for a node defined #}
+{# `<initialMarking>` (В§8.3), a reference node stands for a node defined #}
 {# elsewhere, and a marking here would double the tokens once a #}
 {# conformant reader flattens the two into one. A fusion node's own #}
 {# marking survives only as `<fusedInitialMarking>`, for drawings, since #}

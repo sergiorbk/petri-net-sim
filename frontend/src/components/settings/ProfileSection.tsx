@@ -44,9 +44,11 @@ export function ProfileSection() {
     user?.custom_instructions ?? "",
   );
   const [status, setStatus] = useState<SaveStatus>("idle");
+  const [contributor, setContributor] = useState(user?.contributor ?? {});
 
   useEffect(() => {
     if (user) {
+      setContributor(user.contributor ?? {});
       setName(user.name ?? "");
       setDisplayName(user.display_name ?? "");
       setWorkType(user.work_type ?? "");
@@ -62,6 +64,7 @@ export function ProfileSection() {
       display_name: displayName || null,
       work_type: workType || null,
       custom_instructions: customInstructions || null,
+      contributor: Object.fromEntries(["nickname", "organization", "group", "contacts"].map((key) => [key, contributor[key] ?? ""])),
     });
     if (result.ok) {
       setStatus("saved");
@@ -75,6 +78,11 @@ export function ProfileSection() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <fieldset className="space-y-4 rounded-xl border border-border p-5">
+        <legend className="px-2 text-sm font-semibold">{t("review.contributorTitle")}</legend>
+        <p className="text-sm text-text-muted">{t("review.contributorHint")}</p>
+        {["nickname", "organization", "group", "contacts"].map((key) => <label key={key} className="block space-y-1 text-sm"><span>{t(`review.contributor.${key}`)}</span><Input value={contributor[key] ?? ""} maxLength={1000} disabled={status === "saving"} onChange={(e) => setContributor({ ...contributor, [key]: e.target.value })} /></label>)}
+      </fieldset>
       <div>
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-text-muted">
           {t("settings.profile.avatar")}

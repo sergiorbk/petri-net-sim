@@ -1084,6 +1084,12 @@ function parseTransition(raw: Record<string, unknown>, ctx: ParseCtx): PetriTran
   let stdDev = 0;
   let probability: number | null = null;
 
+  if (ts?.["@_tool"] === TOOL_PETRI_OBJ_MODEL) {
+    distribution = "det";
+    meanDelay = 0;
+    priority = 0;
+  }
+
   if (ts) {
     if (ts.priority != null) {
       // A plain `Number(...) || 1` treated an explicit, legal priority of 0
@@ -1093,6 +1099,7 @@ function parseTransition(raw: Record<string, unknown>, ctx: ParseCtx): PetriTran
       if (Number.isFinite(p)) {
         priority = p;
       } else {
+        priority = 1;
         ctx.warn(
           "bad-number",
           `${describe("Transition", id, name)} has a malformed priority "${String(ts.priority)}"; imported with priority 1.`,
@@ -1106,7 +1113,7 @@ function parseTransition(raw: Record<string, unknown>, ctx: ParseCtx): PetriTran
         distribution = null;
       }
     }
-    if (probability === null) {
+    if (probability === null || ts.distribution != null || ts.delayMeanValue != null || ts.timeDelay != null) {
       const distRaw = ts.distribution;
       if (typeof distRaw === "string") {
         const valid: DistributionType[] = ["exp", "norm", "unif", "det"];

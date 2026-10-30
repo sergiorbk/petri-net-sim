@@ -18,6 +18,6 @@ export async function downloadExport(path: string, body: unknown, fallback: stri
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function downloadNetworkImage(net: PetriNetData): Promise<void> {
-  return downloadExport("/api/v1/sessions/exports/image", { net_data: net, title: net.name }, "network.png");
+export function downloadNetworkImage(net: PetriNetData, options?: Record<string, unknown>): Promise<void> {
+  return downloadExport("/api/v1/sessions/exports/image", { net_data: net, title: net.name, ...(options ? { options } : {}) }, "network.png");
 }

@@ -2,18 +2,19 @@
 
 The modeling rules, pattern explanations and PNML guidance come from
 [petri-modeling-skills](https://github.com/sergiorbk/petri-modeling-skills).
-The submodule at `backend/vendor/petri-modeling-skills` pins the same source
-that the Swing editor uses. Common knowledge is maintained there, not copied
+The pinned `petri-modeling-skills` 0.4.0 Python wheel is downloaded from the
+shared repository's GitHub Release during normal dependency installation.
+Common knowledge is maintained there, not copied
 into application prompts. The local `petri_api_adapter.md` only describes this
 application's tools and parameters.
 
-After cloning, run `git submodule update --init --recursive` before `uv sync`
-in `backend/`. CI and Docker builds include the pinned package. No network
+After cloning, run the ordinary `uv sync` in `backend/`. No additional clone
+or submodule command is required. CI and Docker builds include the pinned package. No network
 request is needed to read skills while the application runs.
 
-To update, fetch the chosen shared commit in the submodule, check it out,
+To update, change the release wheel URL and SHA-256 in `backend/pyproject.toml`,
 run `uv lock` and `uv sync --frozen --extra dev` in `backend/`, then run the
-modeling integration tests. Commit the submodule pointer and lockfile together.
+modeling integration tests. Commit the dependency declaration and lockfile together.
 Coordinate the shared revision with the Swing editor.
 
 Chat prompts load the common guides followed by the local tool bindings.

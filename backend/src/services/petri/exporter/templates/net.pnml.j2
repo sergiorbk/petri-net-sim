@@ -38,11 +38,12 @@
       {% call ts.toolspecific() %}
         {% if trans.probability is not none %}
         <probability>{{ trans.probability }}</probability>
-        {% elif trans.distribution %}
+        {% endif %}
+        {% if trans.distribution or trans.mean_delay > 0 %}
         <timeDelay>{{ trans.mean_delay }}</timeDelay>
         <delayMeanValue>{{ trans.mean_delay }}</delayMeanValue>
-        <distribution>{{ trans.distribution.value }}</distribution>
-        {% if trans.distribution.value in ['norm', 'unif'] %}
+        <distribution>{{ trans.distribution.value if trans.distribution else 'det' }}</distribution>
+        {% if trans.distribution and trans.distribution.value in ['norm', 'unif'] %}
         <standardDeviation>{{ trans.standard_deviation }}</standardDeviation>
         {% endif %}
         {% else %}
@@ -50,9 +51,7 @@
         <delayMeanValue>0</delayMeanValue>
         <distribution>det</distribution>
         {% endif %}
-        {% if trans.probability is none %}
         <priority>{{ trans.priority }}</priority>
-        {% endif %}
       {% endcall %}
       <graphics>
         <position x="{{ (trans.graphics.x + TRANS_W / 2) | round_half_up }}" y="{{ (trans.graphics.y + TRANS_H / 2) | round_half_up }}"/>

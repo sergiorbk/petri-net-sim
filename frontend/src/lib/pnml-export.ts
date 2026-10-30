@@ -54,7 +54,7 @@ function resolveExportNames(net: PetriNetData): {
 /**
  * Exports a canvas to PNML. A truly flat net keeps exporting exactly what it
  * exports today: that is a shipped format with users' files in it. Any canvas
- * that says something a flat net cannot — a frame, a link — gets the
+ * that says something a flat net cannot вЂ” a frame, a link вЂ” gets the
  * ISO/IEC 15909-2 conformant multi-page shape.
  *
  * The file dispatch is deliberately wider than the engine dispatch
@@ -73,8 +73,8 @@ function resolveExportNames(net: PetriNetData): {
 export function exportPnml(net: PetriNetData, onWarning?: (message: string) => void): string {
   if (!isComposedNet(net)) return exportFlatPnml(net);
   // A file is not a simulation request either: an object the engine would
-  // have nothing to run — a frame that only holds other frames, a frame the
-  // user emptied — is still written.
+  // have nothing to run вЂ” a frame that only holds other frames, a frame the
+  // user emptied вЂ” is still written.
   const body = buildComposedRequest(net, { includeEmptyObjects: true, onWarning })!;
   return exportComposedPnml(body, onWarning);
 }
@@ -139,10 +139,11 @@ function exportFlatPnml(net: PetriNetData): string {
 
     if (t.probability !== null) {
       ts.probability = t.probability;
-    } else if (t.distribution) {
+    }
+    if (t.distribution || t.mean_delay > 0) {
       ts.timeDelay = t.mean_delay;
       ts.delayMeanValue = t.mean_delay;
-      ts.distribution = t.distribution;
+      ts.distribution = t.distribution ?? "det";
       if (t.distribution === "norm" || t.distribution === "unif") {
         ts.standardDeviation = t.standard_deviation;
       }

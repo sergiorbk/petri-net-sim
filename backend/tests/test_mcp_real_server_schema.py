@@ -48,6 +48,8 @@ EXPECTED_TOOL_NAMES = frozenset({
     "rename_object", "run_simulation", "set_active_object",
     "set_layout_direction", "set_positions", "validate_model",
     "validate_net",
+    "open_training_bundle", "inspect_training_bundle", "compare_training_revisions",
+    "training_bundle_image", "export_training_review", "run_training_simulation",
 })
 
 
@@ -74,7 +76,7 @@ class TestRealMcpServerToolNames:
     @pytest.mark.anyio
     async def test_tool_count(self):
         tools = await _real_tools()
-        assert len(tools) == 83
+        assert len(tools) == 89
 
 
 class TestRepresentativeToolSchemas:

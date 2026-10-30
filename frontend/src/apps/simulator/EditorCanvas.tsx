@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
 import {
   ReactFlow,
@@ -2533,6 +2534,13 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         const file = event.dataTransfer.files?.[0];
         if (!file) return;
         const lower = file.name.toLowerCase();
+        if (lower.endsWith(".zip")) {
+          try {
+            const { openTrainingFile } = await import("@/stores/training-store");
+            await openTrainingFile(file);
+          } catch { toast(i18n.t("review.invalidArchive"), "error"); }
+          return;
+        }
         if (!lower.endsWith(".pnml") && !lower.endsWith(".xml")) {
           toast(`Unsupported file: ${file.name}`, "error");
           return;

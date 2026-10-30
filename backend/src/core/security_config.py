@@ -23,6 +23,7 @@ class SecuritySettings(BaseSettings):
     # (/simulate, /chat completions with long histories).
     SECURITY_MAX_BODY_BYTES: int = Field(default=262_144, ge=1024)  # 256 KB
     SECURITY_MAX_BODY_BYTES_LARGE: int = Field(default=2_097_152, ge=1024)  # 2 MB
+    SECURITY_MAX_BODY_BYTES_TRAINING: int = Field(default=358_000_000, ge=1024)
     # Path prefixes that get the large body cap. /api/v1/pnml carries the
     # POST /pnml/parse endpoint, which -- like /simulate -- legitimately
     # accepts a full net's worth of content, just as PNML/XML rather than
