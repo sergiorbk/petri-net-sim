@@ -56,6 +56,7 @@ the MCP body (per the phase-1 contract); documented exceptions:
 """
 
 import inspect
+import json
 from typing import Any
 
 # Deliberately NOT using `from __future__ import annotations` here: catalog.py
@@ -2637,16 +2638,17 @@ def op_add_pattern(
 
 
 @tool_operation
-def op_export_image(session: PetriNetSession, title: str = "") -> str:
+def op_export_image(session: PetriNetSession, title: str = "", options: dict | None = None) -> str:
     """Export the current model as a network-only PNG.
 
     Returns filename, media_type and data_base64. Decode the base64 to save
     the actual PNG; this is a model illustration, not an editor screenshot.
     """
-    from src.services.training_export import render_network, encoded_download, filename
-    data, _ = render_network(session.to_net_data())
+    from src.services.training_export import encoded_download, filename
+    from src.services.training_images import export_images
+    data, media, suffix = export_images(session.to_net_data(), options)
     title = title or session.to_net_data().get("name") or "Petri network"
-    return encoded_download(data, filename(title, ".png"), "image/png")
+    return encoded_download(data, filename(title, suffix), media)
 
 
 @tool_operation
@@ -2656,6 +2658,7 @@ def op_export_training_data(
     context: dict | None = None,
     conversation: list[dict] | None = None,
     tool_calls: list[dict] | None = None,
+    archive_base64: str | None = None,
 ) -> str:
     """Export task-scoped training ZIP with PNML, evidence, PNG and geometry.
 
@@ -2684,9 +2687,127 @@ def op_export_training_data(
     title = title or session.to_net_data().get("name") or "Petri session"
     data, name = build_training_bundle(
         session.to_net_data(), title, context=context, conversation=conversation,
+        archive=_training_archive(session, archive_base64),
         tool_calls=tool_calls if tool_calls is not None else observed,
         conversation_origin=getattr(session, "_export_conversation_origin", "client-provided") if conversation else "unavailable",
         tool_origin="client-provided" if tool_calls is not None else "application",
         simulation=simulation,
     )
+    session._training_archive = data
     return encoded_download(data, name, "application/zip")
+
+
+def _training_archive(session, supplied=None):
+    from src.api.versions.v1.routers.training import decode_archive
+    return decode_archive(supplied) if supplied is not None else getattr(session, "_training_archive", None)
+
+
+@tool_operation
+def op_open_training_bundle(session: PetriNetSession, archive_base64: str, replace_current: bool = False) -> str:
+    """Validate and open a portable desktop/web training ZIP encoded as base64.
+
+    Existing model replacement requires replace_current=true. Validation precedes
+    loading; all old snapshots, images, transcripts and reviews remain in the ZIP.
+    """
+    from src.services.training_history import read_bundle
+    from src.services.training_inspection import inspect_bundle
+    data = _training_archive(session, archive_base64)
+    files = read_bundle(data)
+    info = inspect_bundle(files)
+    if session.has_any_content and not replace_current:
+        raise ValueError("Replacing the current model requires replace_current=true")
+    session.load_net_data(info["net_data"])
+    session._training_archive = data
+    session._training_interactive_runs = []
+    return json.dumps(info, ensure_ascii=False)
+
+
+@tool_operation
+def op_inspect_training_bundle(session: PetriNetSession, revision_id: str = "head") -> str:
+    """Inspect saved task, revision chain, reviews, views and PNML model data."""
+    from src.services.training_history import read_bundle
+    from src.services.training_inspection import inspect_bundle
+    data = _training_archive(session)
+    if data is None:
+        raise ValueError("Open a training ZIP first")
+    return json.dumps(inspect_bundle(read_bundle(data), revision_id), ensure_ascii=False)
+
+
+@tool_operation
+def op_compare_training_revisions(session: PetriNetSession, left: str, right: str, include_layout: bool = False) -> str:
+    """Compare two saved revision IDs. Head means saved evidence, not unsaved edits."""
+    from src.services.training_history import read_bundle
+    from src.services.training_inspection import compare_revisions
+    data = _training_archive(session)
+    if data is None:
+        raise ValueError("Open a training ZIP first")
+    return json.dumps(compare_revisions(read_bundle(data), left, right, include_layout), ensure_ascii=False)
+
+
+@tool_operation
+def op_training_bundle_image(session: PetriNetSession, revision_id: str = "head", view_id: str = "main") -> str:
+    """Download an exact saved PNG view, with filename, media_type and data_base64."""
+    from src.services.training_history import read_bundle, revision_files
+    from src.services.training_export import encoded_download
+    data = _training_archive(session)
+    if data is None:
+        raise ValueError("Open a training ZIP first")
+    files = revision_files(read_bundle(data), revision_id)
+    views = json.loads(files.get("network-views.json", b'{"views":[]}'))["views"]
+    view = next((v for v in views if v["id"] == view_id), {"image": "network.png"} if view_id == "main" else None)
+    if view is None or view["image"] not in files:
+        raise ValueError("Unknown saved image view")
+    return encoded_download(files[view["image"]], view_id + ".png", "image/png")
+
+
+@tool_operation
+def op_export_training_review(session: PetriNetSession, reviewer: str, decision: str, comment: str,
+                              findings: list[dict] | None = None, reviewer_kind: str = "agent",
+                              revision_id: str = "head", simulation_horizons: list[float] | None = None,
+                              sampling_interval: float = 1, skip_simulation_reason: str = "",
+                              conversation: list[dict] | None = None) -> str:
+    """Append a review to a portable training ZIP and return a real ZIP download.
+
+    Decisions: accepted, changes_requested, rejected. Findings: severity
+    (error, warning, suggestion), message, optional element_id/view_id/region.
+    Defaults to the loaded revision. Use current for new capture. Automatic
+    simulation uses fresh reviewed-model copies at 100, 1000, 10000 by default.
+    Disabling requires skip_simulation_reason. Never impersonate a human reviewer.
+    """
+    from src.services.training_export import build_training_bundle, encoded_download
+    review = dict(reviewer=reviewer, reviewer_kind=reviewer_kind, decision=decision, comment=comment,
+                  findings=findings or [], revision_id=revision_id, sampling_interval=sampling_interval,
+                  skip_simulation_reason=skip_simulation_reason, interactive_runs=getattr(session, "_training_interactive_runs", []))
+    if simulation_horizons is not None:
+        review["simulation_horizons"] = simulation_horizons
+    net = session.to_net_data()
+    data, name = build_training_bundle(net, net.get("name", "Petri network"), archive=_training_archive(session),
+                                       review=review, conversation=conversation, conversation_origin="client-provided" if conversation else "unavailable",
+                                       tool_calls=getattr(session, "_export_tool_trace", []), tool_origin="application")
+    session._training_archive = data
+    session._training_interactive_runs = []
+    return encoded_download(data, name, "application/zip")
+
+
+@tool_operation
+def op_run_training_simulation(session: PetriNetSession, revision_id: str = "head", horizon: float = 100, sampling_interval: float = 1) -> str:
+    """Run an exact saved revision and retain its trajectory for the next review export.
+
+    Returns actual status, initial/final state and sampled tokens/active channels.
+    Failed attempts are retained. The working model is unchanged.
+    """
+    import math
+    from src.services.training_history import read_bundle, revision_files
+    from src.services.training_simulation import run_evidence
+    if not math.isfinite(horizon) or not 0 < horizon <= 1_000_000 or not math.isfinite(sampling_interval) or sampling_interval <= 0:
+        raise ValueError("Use a horizon above zero and at most 1000000, and a positive sampling interval")
+    archive = _training_archive(session)
+    if not archive:
+        raise ValueError("Open a training ZIP first")
+    runs = getattr(session, "_training_interactive_runs", [])
+    if len(runs) >= 256:
+        raise ValueError("Save the current review before collecting more runs")
+    payload = revision_files(read_bundle(archive), revision_id)
+    run = run_evidence(payload["model.pnml"], horizon, sampling_interval, "interactive-run")
+    session._training_interactive_runs = [*runs, run]
+    return json.dumps(run, ensure_ascii=False)

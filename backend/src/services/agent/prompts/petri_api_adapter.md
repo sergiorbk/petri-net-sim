@@ -68,3 +68,20 @@ Supply actual task context and external conversation explicitly when available;
 the application cannot read another client's chat. Do not fabricate tool call
 timestamps, verification, acceptance or missing messages. Start unreviewed and
 leave verification unknown unless actual checks justify another status.
+
+## Portable review
+
+Use `open_training_bundle` with real ZIP bytes as `archive_base64`; replacing an
+existing model requires `replace_current=true`. `inspect_training_bundle` reads
+the saved task, versions, reviews and view IDs. `training_bundle_image` downloads
+an exact saved image. `compare_training_revisions` compares saved versions.
+
+Use `export_training_review` to append feedback to the same history. Supply the
+actual reviewer, `reviewer_kind=agent`, decision, summary and findings. Record
+explicit human feedback as human only when it was actually supplied. Findings
+reference the inspected geometry element/view IDs, not guessed PNML IDs. Region
+coordinates use saved-image pixels and that image's SHA-256. The tool runs the
+exact reviewed version at horizons 100, 1000 and 10000 by default. Customize
+`simulation_horizons` and `sampling_interval`, or give `skip_simulation_reason`.
+Failed attempts remain evidence, not proof of correctness. Do not edit older
+snapshots or discard rejected attempts. Return the actual ZIP download.

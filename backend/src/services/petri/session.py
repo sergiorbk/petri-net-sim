@@ -1639,6 +1639,8 @@ class PetriNetSession:
 
     def create_network(self, name: str = "PetriNet") -> None:
         """Reset with a new empty network, clearing any composed structure."""
+        self._training_archive = None
+        self._training_interactive_runs = []
         self._free_builder = PetriNetBuilder(name=name)
         self._objects = []
         self._links = []
@@ -1670,6 +1672,8 @@ class PetriNetSession:
         from_net_data's flat/composed branch selection and builder-
         reconstruction here.
         """
+        self._training_archive = None
+        self._training_interactive_runs = []
         rebuilt = PetriNetSession.from_net_data(net_data, auto_optimize=self._auto_optimize)
         self._objects = rebuilt._objects
         self._links = rebuilt._links

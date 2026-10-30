@@ -78,6 +78,22 @@ def test_body_size_limit_large_prefix_gets_higher_cap(monkeypatch):
 # --- Concurrency limit ---
 
 
+@pytest.mark.parametrize("path", ["/mcp", "/api/v1/training/inspect"])
+def test_archive_body_limit_is_enforced_for_http_and_mcp(monkeypatch, path):
+    monkeypatch.setattr(security_settings, "SECURITY_MAX_BODY_BYTES", 100)
+    monkeypatch.setattr(security_settings, "SECURITY_MAX_BODY_BYTES_TRAINING", 1000)
+    app = FastAPI()
+    app.add_middleware(BodySizeLimitMiddleware)
+
+    @app.post(path)
+    async def receive(request: Request):
+        return {"size": len(await request.body())}
+
+    with TestClient(app) as client:
+        assert client.post(path, content=b"x" * 500).status_code == 200
+        assert client.post(path, content=b"x" * 1001).status_code == 413
+
+
 async def test_concurrency_limit_sheds_when_saturated():
     mw = ConcurrencyLimitMiddleware(app=lambda: None, max_concurrent=1)
     mw._in_flight = 1  # simulate a request already in flight

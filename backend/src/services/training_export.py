@@ -80,7 +80,7 @@ def _font(size):
     return ImageFont.load_default(size=size)
 
 
-def render_network(net_data):
+def render_network(net_data, *, scale=1.0, max_dimension=2048, transparent_background=False, include_parameters=False):
     """Render model coordinates, recording bounds from the same drawing operations.
 
     This is a network illustration, not a capture of the editor viewport.
@@ -119,11 +119,27 @@ def render_network(net_data):
     height = max((b[1] + b[3] for b in boxes), default=100) - oy + 24
     if not math.isfinite(width) or not math.isfinite(height) or max(width, height) > 10_000_000:
         raise ValueError("Network coordinates exceed the rendering range")
-    scale = min(1.0, 2048 / max(width, height))
+    if type(scale) not in (int, float) or not math.isfinite(scale) or not 0 < scale <= 4 or type(max_dimension) is not int or not 256 <= max_dimension <= 8192:
+        raise ValueError("Invalid image size or scale")
+    parameter_lines = []
+    if include_parameters:
+        import textwrap
+        for kind, entries, keys in (("place", net_data.get("places", []), ("tokens", "tag")),
+                                  ("transition", net_data.get("transitions", []), ("mean_delay", "distribution", "standard_deviation", "priority", "probability")),
+                                  ("arc", net_data.get("arcs", []), ("weight", "arc_type")),
+                                  ("object", net_data.get("objects", []), ("priority", "objectId")),
+                                  ("link", net_data.get("links", []), ("type", "quantity", "informational"))):
+            for item in entries:
+                line = kind + " " + str(item.get("name", item["id"])) + ": " + ", ".join(k + "=" + str(item.get(k)) for k in keys if k in item)
+                parameter_lines.extend(textwrap.wrap(line, 110) or [line])
+        width = max(width, 850, max((measure.textlength(line, font=font) + 24 for line in parameter_lines), default=0))
+    diagram_height = height
+    height += len(parameter_lines) * 20 + (30 if parameter_lines else 0)
+    scale = min(scale, max_dimension / max(width, height), math.sqrt(24_000_000 / (width * height)))
     width, height = max(1, math.ceil(width * scale)), max(1, math.ceil(height * scale))
-    image = Image.new("RGB", (width, height), "white")
+    image = Image.new("RGBA" if transparent_background else "RGB", (width, height), (255, 255, 255, 0) if transparent_background else "white")
     draw = ImageDraw.Draw(image)
-    font = _font(max(8, round(14 * scale)))
+    font = _font(max(1, round(14 * scale)))
     elements = []
 
     def pixels(box):
@@ -133,11 +149,13 @@ def render_network(net_data):
     def record(identifier, kind, box):
         x, y, r, b = box
         clipped = x < 0 or y < 0 or r > width or b > height
-        elements.append({"id": str(identifier), "kind": kind, "bounds": {"x": max(0, x), "y": max(0, y), "width": max(0, min(width, r)-max(0, x)), "height": max(0, min(height, b)-max(0, y))}, "clipped": clipped})
+        value = {"id": str(identifier), "kind": kind, "bounds": {"x": max(0, x), "y": max(0, y), "width": max(0, min(width, r)-max(0, x)), "height": max(0, min(height, b)-max(0, y))}, "clipped": clipped}
+        elements.append(value)
 
     for frame in net_data.get("objects", []):
         box = pixels((float((frame.get("graphics") or frame).get("x", 0)), float((frame.get("graphics") or frame).get("y", 0)), float((frame.get("graphics") or frame).get("width", 160)), float((frame.get("graphics") or frame).get("height", 100))))
         draw.rectangle(box, outline="#a0a9b2", width=1)
+        draw.text((box[0]+6*scale, box[1]+3*scale), str(frame.get("name", frame["id"])), font=font, fill="#475569")
         record(frame["id"], "object", box)
     for arc in list(net_data.get("arcs", [])) + list(net_data.get("links", [])):
         source, target = arc.get("source_id", arc.get("sourceId")), arc.get("target_id", arc.get("targetId"))
@@ -187,14 +205,19 @@ def render_network(net_data):
         label_box = draw.textbbox(at, text, font=font)
         draw.text(at, text, font=font, fill="#172554")
         record(node["id"]+":label", "label", label_box)
+    for row, text in enumerate(parameter_lines):
+        draw.text((12 * scale, (diagram_height + 15 + row * 20) * scale), text, font=font, fill="#172554")
     output = io.BytesIO()
     image.save(output, format="PNG")
-    geometry = {"coordinate_system": "image-pixels", "image": {"file": "network.png", "width": width, "height": height}, "transform": {"origin_x": ox, "origin_y": oy, "scale": scale}, "label_status": "renderer-derived", "elements": elements}
+    geometry = {"coordinate_system": "image-pixels", "image": {"file": "network.png", "width": width, "height": height}, "transform": {"origin_x": ox, "origin_y": oy, "scale": scale}, "label_status": "renderer-derived", "elements": elements, "parameter_table_visible": include_parameters}
+    geometry["parameters"] = [{"id": e["id"], "name": e.get("name", e["id"]), "kind": kind,
+                              "values": {k: str(getattr(v, "value", v)) for k, v in e.items() if k not in {"id", "name", "graphics"} and v is not None}}
+                             for key, kind in (("places", "place"), ("transitions", "transition"), ("arcs", "arc"), ("objects", "object"), ("links", "arc")) for e in net_data.get(key, [])]
     validate(geometry, "modelGeometry")
     return output.getvalue(), geometry
 
 
-def build_training_bundle(net_data, title, *, context=None, conversation=None, tool_calls=None, conversation_origin="unavailable", tool_origin="unavailable", simulation=None):
+def _build_snapshot(net_data, title, *, context=None, conversation=None, tool_calls=None, conversation_origin="unavailable", tool_origin="unavailable", simulation=None, contributor=None):
     context = sanitize(context or {})
     clean_net = sanitize(net_data)
     title = sanitize(title or "Petri session")
@@ -228,12 +251,23 @@ def build_training_bundle(net_data, title, *, context=None, conversation=None, t
     if not simulation and verification.get("simulation") is None:
         missing.append({"artifact": "verification.json", "reason": "No recorded simulation result is available"})
     try:
-        png, geometry = render_network(clean_net)
+        from src.services.training_images import expanded_network, network_views
+        png, geometry = render_network(expanded_network(clean_net), include_parameters=True, max_dimension=8192)
         artifacts["network.png"] = (png, "image/png", "Network-only illustration from model coordinates")
         artifacts["model-geometry.json"] = (json_bytes(geometry), "application/json", "Bounds from the same network renderer; not detection labels")
+        views = [{"id": "main", "image": "network.png", "geometry": "model-geometry.json", "scope": "whole-document-expanded"}]
+        for view, model in network_views(clean_net):
+            png, geometry = render_network(model, include_parameters=True, max_dimension=8192)
+            artifacts[view["image"]] = (png, "image/png", "Expanded object subtree")
+            geometry["image"]["file"] = view["image"]
+            artifacts[view["geometry"]] = (json_bytes(geometry), "application/json", "Unverified object geometry")
+            views.append(view)
+        artifacts["network-views.json"] = (json_bytes({"views": views}), "application/json", "Expanded image hierarchy")
     except ValueError as exc:
         missing.append({"artifact": "network.png", "reason": str(exc)})
-    manifest = {"schema_version": "1.0", "title": title, "created_at": utc_now(), "app": {"name": "petri-net-sim", "version": version("petri-net-sim")}, "shared_skills": {"version": version("petri-modeling-skills"), "revision": None}, "status": context.get("status", "unreviewed"), "capture_scope": {"conversation": conversation_origin if conversation else "unavailable", "tool_calls": tool_origin if tool_calls else "unavailable"}, "files": [{"name": name, "media_type": media, "sha256": hashlib.sha256(data).hexdigest(), "purpose": purpose} for name, (data, media, purpose) in artifacts.items()], "missing_data": missing}
+    manifest = {"schema_version": "1.1", "title": title, "created_at": utc_now(), "app": {"name": "petri-net-sim", "version": version("petri-net-sim")}, "shared_skills": {"version": version("petri-modeling-skills"), "revision": None}, "status": context.get("status", "unreviewed"), "capture_scope": {"conversation": conversation_origin if conversation else "unavailable", "tool_calls": tool_origin if tool_calls else "unavailable"}, "files": [{"name": name, "media_type": media, "sha256": hashlib.sha256(data).hexdigest(), "purpose": purpose} for name, (data, media, purpose) in artifacts.items()], "missing_data": missing}
+    if contributor:
+        manifest["contributor"] = sanitize(contributor)
     validate(manifest)
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -241,3 +275,36 @@ def build_training_bundle(net_data, title, *, context=None, conversation=None, t
         for name, (data, _, _) in artifacts.items():
             archive.writestr(name, data)
     return output.getvalue(), filename(title, "-training.zip")
+
+
+def build_training_bundle(net_data, title, *, archive=None, review=None, contributor=None, **kwargs):
+    from src.services.training_history import read_bundle, append_history, encode_bundle, revision_files, digest
+    old = read_bundle(archive) if archive else None
+    if old:
+        kwargs["context"] = {**json.loads(old.get("task.json", b"{}")), **(kwargs.get("context") or {})}
+        if not title:
+            title = json.loads(old["manifest.json"])["title"]
+        previous = [json.loads(line) for line in old.get("conversation.jsonl", b"").splitlines() if line.strip()]
+        supplied = kwargs.get("conversation") or []
+        kwargs["conversation"] = supplied if kwargs.get("conversation_origin") == "application" and supplied[:len(previous)] == previous else previous + supplied
+        if previous:
+            kwargs["conversation_origin"] = "client-provided"
+    data, _ = _build_snapshot(net_data, title, contributor=contributor, **kwargs)
+    fresh = read_bundle(data)
+    if review is not None:
+        from src.services.training_simulation import simulation_evidence
+        target = review.get("revision_id")
+        payload = fresh if target == "current" or not old else revision_files(old, target)
+        record = {key: sanitize(review[key]) for key in ("reviewer", "reviewer_kind", "decision", "comment")}
+        if not record["reviewer"].strip() or not record["comment"].strip():
+            raise ValueError("A reviewer name and comment are required")
+        record.update(findings=sanitize(review.get("findings", [])), revision_id=target,
+                      created_at=utc_now(), verification_status="unknown", simulation=simulation_evidence(payload["model.pnml"], review))
+        if contributor:
+            record["submitted_by"] = sanitize(contributor)
+        review = record
+    files = append_history(fresh, old, review)
+    history = json.loads(files["dataset-history.json"])
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    name = filename(title or "Petri session", f'-r{len(history["revisions"]):03d}-review{len(history["reviews"]):03d}-{stamp}.zip')
+    return encode_bundle(files), name

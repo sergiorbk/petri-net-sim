@@ -9,12 +9,13 @@ import { ExportDialog } from "../dialogs/ExportDialog";
 import { parsePnml, summarizeImportWarnings } from "@/lib/pnml-import";
 import { toast } from "@/stores/toast-store";
 import { randomNetName } from "@/lib/random-net-name";
+import { openTrainingFile, useTrainingStore } from "@/stores/training-store";
 
 function pickImportFile(): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".pnml,.xml";
+    input.accept = ".pnml,.xml,.zip";
     input.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
     document.body.appendChild(input);
     const cleanup = () => {
@@ -34,6 +35,7 @@ function pickImportFile(): Promise<File | null> {
 }
 
 async function importFile(file: File): Promise<void> {
+  if (file.name.toLowerCase().endsWith(".zip")) return openTrainingFile(file);
   const text = await file.text();
   const lower = file.name.toLowerCase();
   const looksLikePnml =
@@ -115,6 +117,7 @@ export function useFileActions() {
         return;
       }
       useUserNetsStore.getState().invalidate();
+      useTrainingStore.getState().clear();
       useEditorStore.getState().setNet({ name, places: [], transitions: [], arcs: [] });
       useEditorStore.setState({ cloudNetId: result.data.id, dirty: false });
       navigate(`/nets/${result.data.id}`);

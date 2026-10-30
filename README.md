@@ -120,6 +120,7 @@ of others this way. [More on Petri-objects](docs/petri-objects.md).
 |-------|----------------|
 | [Running](docs/running.md) | The four ways to run it, ports, make targets |
 | [Simulation](docs/simulation.md) | Starting a run, snapshot modes, the statistics panel, exporting results |
+| [Training archives and review](docs/training-review.md) | Portable desktop/web ZIPs, version comparison, findings and simulation evidence |
 | [Configuration](docs/configuration.md) | Environment variables, secrets, choosing a simulation engine |
 | [Deployment](docs/deployment.md) | Publishing images, picking a host, automatic delivery over SSH |
 | [Connecting other tools](docs/integrations.md) | MCP and the HTTP API: keys, URLs, the per-account switches |

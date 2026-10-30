@@ -1,4 +1,7 @@
 import { useCallback, useEffect } from "react";
+import i18n from "@/i18n";
+import { ReviewWorkspace } from "./review/ReviewWorkspace";
+import { openTrainingFile, useTrainingStore } from "@/stores/training-store";
 import { useEditorStore, type EditorTool } from "@/stores/editor-store";
 import { useSimulationStore } from "@/stores/simulation-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -38,6 +41,7 @@ export function SimulatorApp({ readOnly = false }: { readOnly?: boolean }) {
   useEffect(() => {
     if (readOnly) return;
     function onKey(event: KeyboardEvent) {
+      if (useTrainingStore.getState().open) return;
       if (isSimulating) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isTypingTarget(event.target)) return;
@@ -61,6 +65,10 @@ export function SimulatorApp({ readOnly = false }: { readOnly?: boolean }) {
     }
 
     const file = event.dataTransfer.files[0];
+    if (file?.name.toLowerCase().endsWith(".zip")) {
+      void openTrainingFile(file).catch(() => toast(i18n.t("review.invalidArchive"), "error"));
+      return;
+    }
     if (!file || !file.name.endsWith(".pnml")) return;
 
     // Same import path as File > Import and a drop on the canvas itself: an
@@ -108,6 +116,7 @@ export function SimulatorApp({ readOnly = false }: { readOnly?: boolean }) {
       {!readOnly && <CanvasTabsBar />}
       {readOnly ? <ReadOnlyBar /> : <PlaybackBar />}
       {!readOnly && <StatusBar />}
+      {!readOnly && <ReviewWorkspace />}
     </div>
   );
 }
@@ -117,6 +126,7 @@ function useGlobalShortcuts(readOnly = false) {
     if (readOnly) return;
     function onKey(event: KeyboardEvent) {
       const ctrl = event.ctrlKey || event.metaKey;
+      if (useTrainingStore.getState().open) return;
 
       if (ctrl) {
         const code = event.code;
@@ -161,6 +171,7 @@ function useGlobalShortcuts(readOnly = false) {
             if (!ok) return;
           }
           resetNet();
+          useTrainingStore.getState().clear();
           useEditorStore.setState({ cloudNetId: null });
           return;
         }
@@ -221,7 +232,7 @@ async function openPnmlFile() {
 
   const input = document.createElement("input");
   input.type = "file";
-  input.accept = ".pnml";
+  input.accept = ".pnml,.xml,.zip";
   input.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0";
   document.body.appendChild(input);
 
@@ -234,6 +245,10 @@ async function openPnmlFile() {
     const file = input.files?.[0];
     cleanup();
     if (!file) return;
+    if (file.name.toLowerCase().endsWith(".zip")) {
+      void openTrainingFile(file).catch(() => toast(i18n.t("review.invalidArchive"), "error"));
+      return;
+    }
     try {
       const xml = await file.text();
       const { data, warnings } = parsePnml(xml);
@@ -242,6 +257,7 @@ async function openPnmlFile() {
         toast(summarizeImportWarnings(warnings), "warning");
       }
       setNet(data);
+      useTrainingStore.getState().clear();
     } catch (err) {
       toast(`Failed to parse PNML: ${err instanceof Error ? err.message : String(err)}`, "error");
     }

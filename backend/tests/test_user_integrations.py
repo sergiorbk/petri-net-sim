@@ -134,6 +134,23 @@ def _seed_user(session_factory, email: str):
 
 
 class TestIntegrationsOverApi:
+    def test_contributor_profile_survives_edits_and_is_not_cleared_by_other_updates(self, client, session_factory):
+        _, token = _seed_user(session_factory, "contributor@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
+        before = client.get("/api/v1/auth/me", headers=headers).json()["data"]["contributor"]
+        assert "-" in before["nickname"]
+        assert client.get("/api/v1/auth/me", headers=headers).json()["data"]["contributor"] == before
+        for nickname, group in (("Рецензент", "ІС-21"), ("Викладач", "ІС-22")):
+            result = client.patch("/api/v1/auth/me", headers=headers, json={"contributor": {"nickname": nickname, "group": group, "contacts": "review@example.com"}})
+            assert result.status_code == 200
+            saved = client.get("/api/v1/auth/me", headers=headers).json()["data"]["contributor"]
+            assert saved["nickname"] == nickname and saved["group"] == group
+            assert saved["id"] == before["id"]
+        client.patch("/api/v1/auth/me", headers=headers, json={"display_name": "A name"})
+        assert client.get("/api/v1/auth/me", headers=headers).json()["data"]["contributor"] == saved
+        invalid = client.patch("/api/v1/auth/me", headers=headers, json={"contributor": {"id": "another-person"}})
+        assert invalid.status_code == 422
+
     def test_me_defaults_to_both_enabled(self, client, session_factory):
         _, token = _seed_user(session_factory, "switch-default@example.com")
         body = client.get(

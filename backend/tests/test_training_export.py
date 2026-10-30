@@ -46,7 +46,7 @@ def unpack(data):
 def test_archive_defaults_and_exact_renderer_geometry():
     data, name = build_training_bundle(model(), "Finite / service", context={"task": "Process six tokens"})
     archive, manifest = unpack(data)
-    assert name == "Finite___service-training.zip"
+    assert name.startswith("Finite___service-r001-review000-") and name.endswith(".zip")
     assert manifest["status"] == "unreviewed"
     assert manifest["capture_scope"] == {"conversation": "unavailable", "tool_calls": "unavailable"}
     assert archive.read("conversation.jsonl") == archive.read("tool-calls.jsonl") == b""
@@ -125,7 +125,7 @@ async def test_owner_route_rejects_another_users_session():
         response = await export_session_training_data("session", TrainingExportRequest(), SimpleNamespace(id="owner"), None)
         unpack(response.body)
         assert response.media_type == "application/zip"
-        assert "Finite_service-training.zip" in response.headers["content-disposition"]
+    assert "Finite_service-r001-review000-" in response.headers["content-disposition"]
 
 
 @pytest.mark.parametrize("above", [True, False])

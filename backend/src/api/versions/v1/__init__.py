@@ -19,7 +19,10 @@ from .routers import (
     simulate_router,
 )
 
+from .routers.training import router as training_router
+
 v1_router = APIRouter(prefix="/v1", tags=["v1"])
+v1_router.include_router(training_router)
 v1_router.include_router(auth_router)
 v1_router.include_router(config_router)
 v1_router.include_router(llm_credentials_router)

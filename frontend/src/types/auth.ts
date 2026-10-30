@@ -14,6 +14,7 @@ export interface AuthUser {
   mcp_enabled: boolean;
   /** Whether this account's API keys may reach the HTTP API. */
   http_api_enabled: boolean;
+  contributor?: Record<string, string>;
 }
 
 export interface TokenPair {

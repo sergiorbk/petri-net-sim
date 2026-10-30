@@ -10,12 +10,12 @@ import { FUSION_REJECTION_REASON_TEXT } from "@/lib/petri-object-model";
  * `<referenceTransition>` nodes for cross-object structure, instead of
  * hiding that structure entirely inside `<toolspecific>` the way the wire
  * format historically did. See the composed-PNML conformance spec for the
- * full contract this file implements; every §-reference in a comment below
+ * full contract this file implements; every В§-reference in a comment below
  * points at that document.
  *
  * Hand-written string serialisation rather than a generic XML builder: a
  * fusion `<referencePlace>` has to interleave with `<place>` elements at
- * exactly the position of the place it replaces (§3), and object-keyed
+ * exactly the position of the place it replaces (В§3), and object-keyed
  * builders group same-named children together, which cannot express that.
  */
 
@@ -137,13 +137,13 @@ export function buildIdRemap(rawIds: string[], reserved: readonly string[] = [])
   return { ids, resolve: (rawId: string) => firstFinalIdOf.get(rawId) ?? rawId };
 }
 
-/** Strips a previously-applied `o<digits>_` namespace prefix, so re-export is idempotent (§2). */
+/** Strips a previously-applied `o<digits>_` namespace prefix, so re-export is idempotent (В§2). */
 function stripNamespacePrefix(id: string): string {
   return id.replace(/^o\d+_/, "");
 }
 
 /**
- * Whole-document, all-or-nothing namespacing (§2): if any element id occurs
+ * Whole-document, all-or-nothing namespacing (В§2): if any element id occurs
  * in more than one object, every element id in the document is emitted as
  * `o{objectIndex}_{id}`. Canvas-built models never collide, so this is a
  * safety net for hand-assembled or externally-loaded objects sharing ids.
@@ -226,7 +226,7 @@ function pageId(objectIndex: number): string {
   return `object${objectIndex}`;
 }
 
-/** Which kind of node a link endpoint addresses, per the §4 projection table. */
+/** Which kind of node a link endpoint addresses, per the В§4 projection table. */
 function endpointKind(type: ComposedLinkSpec["type"], side: "source" | "target"): "place" | "transition" {
   if (type === "placeFusion") return "place";
   if (type === "transitionToPlace") return side === "source" ? "transition" : "place";
@@ -330,10 +330,11 @@ function transitionXml(id: string, name: string, t: Pick<PetriTransition, "prior
   const ts: string[] = [];
   if (t.probability !== null) {
     ts.push(`<probability>${t.probability}</probability>`);
-  } else if (t.distribution) {
+  }
+  if (t.distribution || t.mean_delay > 0) {
     ts.push(`<timeDelay>${t.mean_delay}</timeDelay>`);
     ts.push(`<delayMeanValue>${t.mean_delay}</delayMeanValue>`);
-    ts.push(`<distribution>${t.distribution}</distribution>`);
+    ts.push(`<distribution>${t.distribution ?? "det"}</distribution>`);
     if (t.distribution === "norm" || t.distribution === "unif") {
       ts.push(`<standardDeviation>${t.standard_deviation}</standardDeviation>`);
     }
@@ -348,7 +349,7 @@ function transitionXml(id: string, name: string, t: Pick<PetriTransition, "prior
   return lines.join("\n");
 }
 
-/** An object's own internal arc (§3 "own arcs"); carries `<arcType>` for INHIBITOR/READ, never `<type value="inhibitorArc"/>` (§8.7). */
+/** An object's own internal arc (В§3 "own arcs"); carries `<arcType>` for INHIBITOR/READ, never `<type value="inhibitorArc"/>` (В§8.7). */
 function ownArcXml(id: string, source: string, target: string, weight: number, arcType: ArcType): string {
   assertWeight(weight, `arc "${id}"`);
   const lines: string[] = [
@@ -368,7 +369,7 @@ function ownArcXml(id: string, source: string, target: string, weight: number, a
 }
 
 /**
- * The arc realising a transitionToPlace link (§4), from the source's own
+ * The arc realising a transitionToPlace link (В§4), from the source's own
  * transition to the representative node standing for the target place.
  *
  * `informational` is always false here: it is only meaningful for
@@ -393,7 +394,7 @@ function linkArcXml(id: string, source: string, target: string, weight: number, 
   return lines.join("\n");
 }
 
-/** A `<referencePlace>`/`<referenceTransition>` node (§4, §7): never carries `<initialMarking>` (§8.3). */
+/** A `<referencePlace>`/`<referenceTransition>` node (В§4, В§7): never carries `<initialMarking>` (В§8.3). */
 function referenceNodeXml(
   tag: "referencePlace" | "referenceTransition",
   id: string,
@@ -447,7 +448,7 @@ interface RepresentativeEntry {
 interface PageModel {
   index: number;
   spec: ComposedObjectSpec;
-  /** `<place>` and fusion `<referencePlace>`, in the object's own place order (§3). */
+  /** `<place>` and fusion `<referencePlace>`, in the object's own place order (В§3). */
   placeSlots: string[];
   transitions: string[];
   /** `<referencePlace>`/`<referenceTransition>` for arc-like links, in link order, deduped per target. */
@@ -640,7 +641,7 @@ function buildPages(body: ComposedSimulateBody, namespaced: boolean, remap: IdAs
     );
 
     // Arc-like (transitionToPlace) links sourced from this object gain a
-    // representative reference node standing for the target element (§4), deduped per target
+    // representative reference node standing for the target element (В§4), deduped per target
     // so several links to the same remote element share one node.
     const representatives: string[] = [];
     const repByTarget = new Map<string, RepresentativeEntry>();
@@ -746,7 +747,7 @@ function buildPages(body: ComposedSimulateBody, namespaced: boolean, remap: IdAs
  * frame the user sized by hand being silently re-fitted on reload.
  *
  * The free-elements bucket is the one page that is not a Petri-object, and the
- * convention that says so is an all-default marker — no geometry at all. The
+ * convention that says so is an all-default marker вЂ” no geometry at all. The
  * reader (here and in GraphCanvasModel.fromObjModel) recognises it by exactly
  * that, so nothing optional may leak onto it.
  */
@@ -802,7 +803,7 @@ function pageXml(page: PageModel, childrenOf: (index: number) => PageModel[]): s
 }
 
 /**
- * `<petriObjectLinks>` (§6): still emitted at version 2.1, now with
+ * `<petriObjectLinks>` (В§6): still emitted at version 2.1, now with
  * id-valued `sourceElementId`/`targetElementId` alongside the positional
  * indices. Redundant with the structural reference nodes above, kept for
  * a reader that doesn't implement them yet (an un-rebuilt petri-server, a

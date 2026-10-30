@@ -219,6 +219,8 @@ async def update_me(
 
     meta = dict(user.metadata_ or {})
     fields_set = data.model_fields_set
+    if data.contributor is not None:
+        meta["contributor"] = {**meta.get("contributor", {}), **{k: v.strip() for k, v in data.contributor.items()}}
 
     if "display_name" in fields_set:
         if data.display_name:

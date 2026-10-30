@@ -100,7 +100,7 @@ project's:
 ```bash
 git clone https://github.com/StetsenkoInna/PetriObjModelPaint
 cd PetriObjModelPaint
-docker build -f petri-server/Dockerfile -t your-registry/petri-server:2.2.2 .
+docker build -f petri-server/Dockerfile -t your-registry/petri-server:2.5.0 .
 ```
 
 The build context is that repository's root, not `petri-server/`: it is a
