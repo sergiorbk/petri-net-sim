@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   bump:
@@ -107,24 +108,19 @@ jobs:
           npm run typecheck
           npm run test:run
 
-      - name: Commit, tag, and push
+      # The default branch only accepts pull requests, so the bump arrives as
+      # one. The tag is created when the GitHub Release is published from the
+      # merged commit.
+      - name: Open the version pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          base="${{ inputs.branch || github.event.repository.default_branch }}"
+          branch="release/v${{ inputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add \
-            frontend/package.json \
-            frontend/package-lock.json \
-            backend/pyproject.toml \
-            backend/uv.lock \
-            backend/src/services/petri/exporter/toolspecific.py \
-            backend/src/core/config.py \
-            backend/tests/fixtures/composed_conformant_v21.pnml \
-            frontend/src/lib/__fixtures__/composed_conformant_v21.pnml \
-            frontend/src/lib/pnml-export.test.ts
+          git switch -c "$branch"
+          git add             frontend/package.json             frontend/package-lock.json             backend/pyproject.toml             backend/uv.lock             backend/src/services/petri/exporter/toolspecific.py             backend/src/core/config.py             backend/tests/fixtures/composed_conformant_v21.pnml             frontend/src/lib/__fixtures__/composed_conformant_v21.pnml             frontend/src/lib/pnml-export.test.ts
           git commit -m "Bump project version to ${{ inputs.version }}"
-          git tag "v${{ inputs.version }}"
-          # Branch first, then the tag: if the branch push is rejected (e.g.
-          # a race with another push to the same branch), no tag is left
-          # pointing at a commit nobody's history actually contains.
-          git push origin HEAD:"${{ inputs.branch || github.event.repository.default_branch }}"
-          git push origin "v${{ inputs.version }}"
+          git push origin "$branch"
+          gh pr create --base "$base" --head "$branch"             --title "chore(release): prepare version ${{ inputs.version }}"             --body "Update version metadata, lockfiles and generated PNML fixtures using the standard release script; both suites passed in the workflow. After merging, publish a GitHub Release with a new tag v${{ inputs.version }} on $base."
