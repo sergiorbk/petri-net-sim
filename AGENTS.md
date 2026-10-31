@@ -113,8 +113,8 @@ Semantic versioning, `v1.2.3`:
 
 | Step | What happens |
 |------|--------------|
-| Run `bump-version.yml` | Rewrites every version literal, regenerates the golden PNML fixtures, runs both suites as a gate, commits and tags |
-| Publish a GitHub Release from the tag | A human step, and the only one |
+| Run `bump-version.yml` | Rewrites every version literal, regenerates the golden PNML fixtures, runs both suites as a gate, opens a pull request (the trunk accepts nothing else) |
+| Merge it, then publish a GitHub Release with a new tag on the merged commit | The human steps |
 | `release.yml` reacts | Builds and pushes the all-in-one image to GHCR, the only one published |
 | `deploy.yml` reacts | Ships that release to the configured server |
 
