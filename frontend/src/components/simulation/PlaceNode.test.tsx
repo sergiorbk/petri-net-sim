@@ -32,7 +32,7 @@ describe("PlaceNode linked fill", () => {
     const circle = renderPlace(baseData({ linked: false }));
     expect(circle.className).toContain("bg-white");
     expect(circle.className).toContain("dark:bg-zinc-900");
-    expect(circle.className).not.toContain("bg-zinc-300");
+    expect(circle.className).not.toContain("bg-zinc-400");
   });
 
   it("gives a linked place the grey interior, master role", () => {
@@ -40,8 +40,8 @@ describe("PlaceNode linked fill", () => {
     // fusionGroupsByPlace's root resolution), but the fill only cares that
     // the place is IN a group, not which end it is.
     const circle = renderPlace(baseData({ linked: true, fusionLabel: "A" }));
-    expect(circle.className).toContain("bg-zinc-300");
-    expect(circle.className).toContain("dark:bg-zinc-700");
+    expect(circle.className).toContain("bg-zinc-400");
+    expect(circle.className).toContain("dark:bg-zinc-600");
     expect(circle.className).not.toContain("bg-white");
   });
 
@@ -49,7 +49,7 @@ describe("PlaceNode linked fill", () => {
     // A copy renders through the exact same `linked` flag as the master;
     // there is no separate "is this the copy" prop to fall out of sync.
     const circle = renderPlace(baseData({ linked: true, fusionLabel: "A" }));
-    expect(circle.className).toContain("bg-zinc-300");
-    expect(circle.className).toContain("dark:bg-zinc-700");
+    expect(circle.className).toContain("bg-zinc-400");
+    expect(circle.className).toContain("dark:bg-zinc-600");
   });
 });

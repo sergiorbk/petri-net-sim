@@ -1203,10 +1203,10 @@ export function buildGraph(
 
   // Place fusion is the one link that is not a flow: it declares that two
   // places in different objects are the same place. There is no arc form for
-  // that, so it keeps a distinct look, a dash-dot tie with no arrowhead,
-  // rendered through each node's fixed fallback handle pair. FusionEdge owns
-  // the dash pattern and stroke width itself; only the colour (which depends
-  // on selection and connector membership) is decided here.
+  // that, so it keeps a distinct look, a double line with an open arrowhead at
+  // the copy end, rendered through each node's fixed fallback handle pair.
+  // FusionEdge owns the rail geometry and stroke width itself; only the colour
+  // (which depends on selection and connector membership) is decided here.
   for (const link of getLinks(net)) {
     if (link.type !== "placeFusion") continue;
     if (isInternalToCollapsedFrame(net, hiddenIds, link)) continue;
