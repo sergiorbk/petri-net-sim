@@ -91,7 +91,7 @@ export const PlaceNode = memo(({ data, selected }: PlaceNodeProps) => {
             : hasTokens
               ? "border-zinc-300 dark:border-zinc-200"
               : "border-zinc-200 dark:border-zinc-400",
-          data.linked ? "bg-zinc-300 dark:bg-zinc-700" : "bg-white dark:bg-zinc-900",
+          data.linked ? "bg-zinc-400 dark:bg-zinc-600" : "bg-white dark:bg-zinc-900",
           pulsing && "petri-pulse-place",
         )}
       >
