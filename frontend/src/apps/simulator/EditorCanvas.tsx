@@ -31,6 +31,7 @@ import { SmartEdge } from "@/components/simulation/SmartEdge";
 import { OrthogonalEdge } from "@/components/simulation/OrthogonalEdge";
 import { StraightEdge } from "@/components/simulation/StraightEdge";
 import { FusionEdge } from "@/components/simulation/FusionEdge";
+import { withArcHint, type ArcHintKind } from "@/components/simulation/arc-hint";
 import type {
   ArcType,
   ObjectLink,
@@ -119,10 +120,10 @@ export const NODE_TYPES = {
 } as const;
 
 export const EDGE_TYPES = {
-  smart: SmartEdge,
-  orthogonal: OrthogonalEdge,
-  straight: StraightEdge,
-  fusion: FusionEdge,
+  smart: withArcHint(SmartEdge),
+  orthogonal: withArcHint(OrthogonalEdge),
+  straight: withArcHint(StraightEdge),
+  fusion: withArcHint(FusionEdge),
 } as const;
 
 function spreadOffsets(count: number, sideLengthPx: number): number[] {
@@ -731,8 +732,17 @@ function resolveEndpoint(
 const CONNECTOR_ACCENT = "var(--accent)";
 const CONNECTOR_HELD_BACK = "color-mix(in srgb, var(--accent) 42%, var(--surface))";
 
+/** Which hover hint a connection gets; see withArcHint. */
+function arcHintKind(arc: FlowConnection, placeIds: Set<string>): ArcHintKind {
+  if (!placeIds.has(arc.source_id)) return "output";
+  if (arc.arc_type === "INHIBITOR") return "inhibitor";
+  if (arc.arc_type === "READ") return "read";
+  return "input";
+}
+
 function buildEdge(
   arc: FlowConnection,
+  arcKind: ArcHintKind,
   selected: boolean,
   edgeStyle: EdgeStyle,
   routing: ArcRouting | undefined,
@@ -762,7 +772,7 @@ function buildEdge(
     label: arc.weight > 1 ? String(arc.weight) : undefined,
     selected,
     animated,
-    data: { midOffset: routing?.midOffset ?? 0 },
+    data: { midOffset: routing?.midOffset ?? 0, arcKind },
     markerEnd: isInhibitor
       ? undefined
       : {
@@ -1182,6 +1192,7 @@ export function buildGraph(
   // makes a connection silently disappear. One wholly inside a single collapsed
   // frame has nothing to show and is skipped.
   const edges: FlowEdge[] = [];
+  const placeIds = new Set(net.places.map((p) => p.id));
   for (const a of flowConnections) {
     const conn = { id: a.id, sourceId: a.source_id, targetId: a.target_id };
     if (isInternalToCollapsedFrame(net, hiddenIds, conn)) continue;
@@ -1191,6 +1202,7 @@ export function buildGraph(
     edges.push(
       buildEdge(
         a,
+        arcHintKind(a, placeIds),
         selectedIds.has(a.id),
         edgeStyle,
         routing[a.id],
@@ -1231,7 +1243,7 @@ export function buildGraph(
       targetHandle: target.handle,
       type: "fusion",
       selected: isSelected,
-      data: { lit: isLit },
+      data: { lit: isLit, arcKind: "fusion" },
       style: {
         stroke:
           isLit || isSelected ? CONNECTOR_ACCENT : isSibling ? CONNECTOR_HELD_BACK : "#a855f7",

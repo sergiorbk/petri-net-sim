@@ -9,7 +9,7 @@ const STROKE_WIDTH_SELECTED = 2.2;
 const RAIL_GAP = 5;
 
 /** Length of each arm of the open arrowhead. */
-const ARROW_ARM = 12;
+const ARROW_ARM = 18;
 /** Angle between each arm and the tie, in radians (30 degrees). */
 const ARROW_ANGLE = Math.PI / 6;
 

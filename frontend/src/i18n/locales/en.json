@@ -533,6 +533,13 @@
         "wouldCreateLoop": "That would make a loop of links, where each place copies the next.",
         "sameObject": "Both places belong to the same Petri-object, so linking them would have it repeat itself."
       }
+    },
+    "arcHint": {
+      "input": "Input arc. The transition needs tokens in this place to fire and takes them when it fires.",
+      "output": "Output arc. When the transition fires, it puts tokens into this place.",
+      "read": "Informational arc. The transition needs tokens in this place to fire but does not take them.",
+      "inhibitor": "Inhibitor arc. This simulator treats it like an informational arc: the transition needs tokens here but does not take them.",
+      "fusion": "Shared place link. Both places are one place in different Petri-objects; the place at the arrowhead repeats the other one (In := Out)."
     }
   },
   "canvasTabs": {
