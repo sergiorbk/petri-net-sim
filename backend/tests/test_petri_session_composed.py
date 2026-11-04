@@ -395,6 +395,90 @@ class TestEnsurePatternsInObjects:
         session.ensure_patterns_in_objects()
         assert session.active_object_index is None
 
+    def _fan_out(self) -> PetriNetSession:
+        """One output port feeding TWO patterns: Arrivals -> A and -> B."""
+        session = PetriNetSession()
+        builder = session.builder
+        gen = builder.add_generator("Arrivals", interval=10.0)
+        a = builder.add_machine("A", processing_time=5.0)
+        b = builder.add_machine("B", processing_time=5.0)
+        builder.connect(gen.interface.output_place_id, a.interface.input_place_id)
+        builder.connect(gen.interface.output_place_id, b.interface.input_place_id)
+        return session
+
+    def _diamond(self) -> PetriNetSession:
+        """Fan-out then fan-in: Arrivals -> (A | B) -> Sink."""
+        session = self._fan_out()
+        builder = session.builder
+        sink = builder.add_terminator("Sink")
+        for name in ("A", "B"):
+            builder.connect(
+                builder.pattern_instances[name]["output_place_id"],
+                sink.interface.input_place_id,
+            )
+        return session
+
+    def test_a_fan_out_is_split_instead_of_raising(self):
+        """One output place handing off to two patterns used to raise
+        "That place already copies another one" halfway through the split:
+        every hand-off was stated as output -> input, which made the shared
+        output the COPY of two different masters."""
+        session = self._fan_out()
+        assert session.ensure_patterns_in_objects() == ["Arrivals", "A", "B"]
+        assert session._free_builder.net.places == []
+
+    def test_a_fan_out_keeps_both_hand_offs(self):
+        """A fan is one master with N copies pointing at it, so all three
+        ports stay connected: the shared output is the master here."""
+        session = self._fan_out()
+        session.ensure_patterns_in_objects()
+        data = session.to_net_data()
+        assert len(data["links"]) == 2
+        assert len({link["targetId"] for link in data["links"]}) == 1
+        assert net_data_to_composed_model(data).validate() == []
+
+    def test_a_fan_in_still_points_at_the_shared_input(self):
+        session = PetriNetSession()
+        builder = session.builder
+        a = builder.add_generator("A", interval=10.0)
+        b = builder.add_generator("B", interval=10.0)
+        sink = builder.add_terminator("Sink")
+        builder.connect(a.interface.output_place_id, sink.interface.input_place_id)
+        builder.connect(b.interface.output_place_id, sink.interface.input_place_id)
+        session.ensure_patterns_in_objects()
+        data = session.to_net_data()
+        assert len(data["links"]) == 2
+        assert len({link["targetId"] for link in data["links"]}) == 1
+        assert net_data_to_composed_model(data).validate() == []
+
+    def test_a_diamond_is_a_valid_composed_model(self):
+        session = self._diamond()
+        assert session.ensure_patterns_in_objects() == ["Arrivals", "A", "B", "Sink"]
+        data = session.to_net_data()
+        assert len(data["links"]) == 4
+        assert net_data_to_composed_model(data).validate() == []
+
+    def test_a_failure_halfway_leaves_the_net_exactly_as_it_was(self, monkeypatch):
+        """The split moves elements before it links them. If the linking
+        step fails, a half-done split is worse than none: the free pool is
+        empty, the objects exist, and the flow between them is cut."""
+        session = self._linear_flow()
+        before = _net_shape(session.builder.net)
+
+        def boom(self, fusions):
+            raise ValueError("forced")
+
+        monkeypatch.setattr(PetriNetSession, "_relink_dissolved_connectors", boom)
+
+        assert session.ensure_patterns_in_objects() == []
+
+        assert session.objects == []
+        assert session.links == []
+        assert _net_shape(session.builder.net) == before
+        assert list(session.builder.pattern_instances) == [
+            "Arrivals", "Processor", "Counter",
+        ]
+
 
 class TestIdCollisionMitigation:
     """Best-effort mitigation documented in session.py's _reserve_known_ids:

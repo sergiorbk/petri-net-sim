@@ -1,5 +1,6 @@
 """PetriNet session - manages builder state for tool execution contexts."""
 
+import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
@@ -325,6 +326,59 @@ def _remove_connectors(net: PetriNet, connectors: list[tuple[str, str, str]]) ->
         for arc in [*net.get_arcs_to(transition_id), *net.get_arcs_from(transition_id)]:
             net.remove_arc(arc.id)
         net.remove_transition(transition_id)
+
+
+def _orient_fusions(fusions: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Turn dissolved hand-offs `(output_port, input_port)` into place-fusion
+    links `(copy, master)` that a composed model accepts.
+
+    A fusion is a set of places that are all the same place, and a composed
+    model writes that down as ONE master with N copies pointing at it (a
+    fan). It refuses a place that copies two different masters: "which
+    marking does it hold?" has no answer. Stating every hand-off as
+    output -> input is fine while each port appears once, but a fan-out (one
+    output feeding two patterns) makes that single output the copy of both
+    inputs, and the second link is rejected.
+
+    So the hand-offs are grouped into the sets of places they make one place
+    (union-find), and each set gets one master: the port that carries the
+    most hand-offs, since that is what a fan hangs off. Ties go to the first
+    hand-off's INPUT port, which is the direction every hand-off used before
+    fans were handled and so keeps a plain chain of patterns byte-identical.
+    Every other member of the set copies the master, which is also what the
+    transitive case needs (a place reachable only through a third one).
+    """
+    parent: dict[str, str] = {}
+
+    def find(node: str) -> str:
+        parent.setdefault(node, node)
+        while parent[node] != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+        return node
+
+    degree: dict[str, int] = {}
+    first_input: dict[str, str] = {}
+    for source, target in fusions:
+        root_a, root_b = find(source), find(target)
+        if root_a != root_b:
+            parent[root_a] = root_b
+        degree[source] = degree.get(source, 0) + 1
+        degree[target] = degree.get(target, 0) + 1
+
+    members_by_root: dict[str, list[str]] = {}
+    for node in parent:
+        members_by_root.setdefault(find(node), []).append(node)
+    for source, target in fusions:
+        first_input.setdefault(find(source), target)
+
+    oriented: list[tuple[str, str]] = []
+    for root, members in members_by_root.items():
+        top = max(degree[m] for m in members)
+        hubs = [m for m in members if degree[m] == top]
+        master = first_input[root] if first_input[root] in hubs else hubs[0]
+        oriented.extend((member, master) for member in members if member != master)
+    return oriented
 
 
 def _group_by_object_boundary(
@@ -848,9 +902,59 @@ class PetriNetSession:
             )
             return []
 
+        # Everything from here on changes the session, and every step can
+        # still fail (an object cap raced, a link the model rejects). A split
+        # that stops halfway is the worst outcome there is: the free pool is
+        # empty, the objects exist and the flow between them is cut. So the
+        # state is snapshotted first and put back on ANY failure, which makes
+        # the whole pass all-or-nothing, like the early returns above.
+        element_count = len(builder.net.places) + len(builder.net.transitions)
+        snapshot = copy.deepcopy(
+            (
+                self._free_builder,
+                self._objects,
+                self._links,
+                self._active_object,
+                self._last_output_place_id,
+            )
+        )
+        try:
+            created = self._split_into_objects(groups, connectors, instances)
+        except Exception:
+            (
+                self._free_builder,
+                self._objects,
+                self._links,
+                self._active_object,
+                self._last_output_place_id,
+            ) = snapshot
+            logger.exception(
+                "Object mode: splitting the net into objects failed; "
+                "leaving it flat as it was."
+            )
+            return []
+        if created:
+            logger.debug(
+                "Object mode: framed %d pattern group(s) out of %d free-pool "
+                "elements: %s",
+                len(created), element_count, ", ".join(created),
+            )
+        return created
+
+    def _split_into_objects(
+        self,
+        groups: list[tuple[str, list[str], list[str]]],
+        connectors: list[tuple[str, str, str]],
+        instances: dict[str, dict],
+    ) -> list[str]:
+        """The mutating half of `ensure_patterns_in_objects`: dissolve the
+        connectors, move each group into its own object, hand the pattern
+        registrations over and re-state the hand-offs as links. Split out so
+        the caller can wrap exactly these steps in its snapshot/rollback.
+        Returns the names of the objects created."""
+        builder = self._free_builder
         _remove_connectors(builder.net, connectors)
         fusions = [(source, target) for _, source, target in connectors]
-        element_count = len(builder.net.places) + len(builder.net.transitions)
 
         created: list[tuple[str, list[str]]] = []
         for name, members, pattern_names in groups:
@@ -873,25 +977,22 @@ class PetriNetSession:
             self._objects[index].builder.adopt_pattern_instances(
                 {n: instances[n] for n in pattern_names}
             )
-        created = [name for name, _ in created]
         self.set_active_object(None)
         self._relink_dissolved_connectors(fusions)
-        if created:
-            logger.debug(
-                "Object mode: framed %d pattern group(s) out of %d free-pool "
-                "elements: %s",
-                len(created), element_count, ", ".join(created),
-            )
-        return created
+        return [name for name, _ in created]
 
     def _relink_dissolved_connectors(self, fusions: list[tuple[str, str]]) -> None:
         """Re-state each dissolved connector as a place-fusion link between
-        the two ports it used to join, now that they live in objects."""
+        the two ports it used to join, now that they live in objects.
+
+        The links are oriented per fusion set, not per hand-off: see
+        `_orient_fusions` for why a fan-out cannot be written as one
+        output -> input link per connector."""
         frame_of: dict[str, str] = {}
         for obj in self._objects:
             for place in obj.net.places:
                 frame_of[place.id] = obj.frame_id
-        for source_id, target_id in fusions:
+        for source_id, target_id in _orient_fusions(fusions):
             source_frame = frame_of.get(source_id)
             target_frame = frame_of.get(target_id)
             if source_frame is None or target_frame is None:
