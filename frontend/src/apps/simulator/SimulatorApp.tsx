@@ -6,6 +6,7 @@ import { useEditorStore, type EditorTool } from "@/stores/editor-store";
 import { useSimulationStore } from "@/stores/simulation-store";
 import { useUiStore } from "@/stores/ui-store";
 import { parsePnml, summarizeImportWarnings } from "@/lib/pnml-import";
+import { DuplicateNameDialog } from "@/components/common/DuplicateNameDialog";
 import { TopBar } from "./TopBar";
 import { EditorCanvas } from "./EditorCanvas";
 import { CanvasTabsBar } from "./CanvasTabsBar";
@@ -117,6 +118,7 @@ export function SimulatorApp({ readOnly = false }: { readOnly?: boolean }) {
       {readOnly ? <ReadOnlyBar /> : <PlaybackBar />}
       {!readOnly && <StatusBar />}
       {!readOnly && <ReviewWorkspace />}
+      {!readOnly && <DuplicateNameDialog />}
     </div>
   );
 }

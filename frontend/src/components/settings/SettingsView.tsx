@@ -1,11 +1,12 @@
 import { type ReactNode } from "react";
-import { ArrowLeft, Key, Monitor, Cpu, User } from "lucide-react";
+import { ArrowLeft, Key, Monitor, Cpu, SquarePen, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { IconButton } from "@/components/common/IconButton";
 import { WordMark } from "@/components/common/WordMark";
 import { ApiKeysSection } from "./ApiKeysSection";
+import { EditorSection } from "./EditorSection";
 import { LlmProfilesSection } from "./LlmProfilesSection";
 import { ProfileSection } from "./ProfileSection";
 import { ThemeToggle } from "./ThemeToggle";
@@ -15,6 +16,7 @@ import { HttpApiSection } from "./integrations/HttpApiSection";
 
 export type SettingsSection =
   | "appearance"
+  | "editor"
   | "profile"
   | "llm"
   | "api-keys"
@@ -30,6 +32,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "appearance", labelKey: "settings.nav.appearance", icon: <Monitor size={16} /> },
+  { id: "editor", labelKey: "settings.nav.editor", icon: <SquarePen size={16} /> },
   { id: "profile", labelKey: "settings.nav.profile", icon: <User size={16} /> },
   { id: "llm", labelKey: "settings.nav.llmModels", icon: <Cpu size={16} /> },
   { id: "api-keys", labelKey: "settings.nav.apiKeys", icon: <Key size={16} /> },
@@ -112,6 +115,7 @@ export function SettingsView() {
               <LanguageSwitcher />
             </div>
           )}
+          {section === "editor" && <EditorSection />}
           {section === "profile" && <ProfileSection />}
           {section === "llm" && <LlmProfilesSection />}
           {section === "api-keys" && <ApiKeysSection />}

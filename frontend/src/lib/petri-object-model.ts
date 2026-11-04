@@ -7,7 +7,7 @@ import type {
   PetriPlace,
   PetriTransition,
 } from "@/types/petri";
-import { nextId, nextLabel } from "@/lib/petri-ids";
+import { nextId } from "@/lib/petri-ids";
 import {
   boxOfElement,
   FRAME_HEADER_H,
@@ -339,8 +339,15 @@ export interface ElementGroup {
 
 /**
  * Fresh copies of a group of elements, ready to be appended to `net`: new ids
- * that collide with nothing already there, de-duplicated names, positions
- * shifted by `offset`, and internal wiring re-pointed at the copies.
+ * that collide with nothing already there, positions shifted by `offset`, and
+ * internal wiring re-pointed at the copies.
+ *
+ * Names are copied VERBATIM. Whether a copy may repeat a name the canvas
+ * already uses is the caller's decision, because it differs by gesture: paste
+ * and duplicate warn and offer another name (petri-names and the
+ * name-conflict store), while an import must keep the file's names exactly as
+ * they are. Renaming in here made that impossible, and it only ever compared
+ * each kind against itself.
  *
  * Membership only survives when the owning frame is part of the group — a
  * member copied without its object comes out free rather than silently
@@ -360,7 +367,6 @@ export function cloneElements(
     const clone: ObjectFrame = {
       ...frame,
       id,
-      name: nextLabel(frame.name, existingObjects),
       // A nested frame's parent pointer follows its own parent's clone, the
       // same way a member's objectId is remapped below — otherwise a copied
       // child frame would stay attached to the ORIGINAL outer frame instead
@@ -386,7 +392,6 @@ export function cloneElements(
     const clone: PetriPlace = {
       ...place,
       id,
-      name: nextLabel(place.name, existingPlaces),
       objectId: place.objectId ? idMap.get(place.objectId) : undefined,
       graphics: { x: place.graphics.x + offset.x, y: place.graphics.y + offset.y },
     };
@@ -401,7 +406,6 @@ export function cloneElements(
     const clone: PetriTransition = {
       ...transition,
       id,
-      name: nextLabel(transition.name, existingTransitions),
       objectId: transition.objectId ? idMap.get(transition.objectId) : undefined,
       graphics: {
         x: transition.graphics.x + offset.x,
@@ -803,7 +807,9 @@ export function synthesizePlaceToTransitionFusion(
 
   const proxyPlace: PetriPlace = {
     id: nextId("p", net.places),
-    name: nextLabel("Place", net.places, 1),
+    // The proxy IS the fused place seen from the transition's object, so it
+    // carries the same name: shared places keep one name wherever they appear.
+    name: place.name,
     tokens: place.tokens,
     graphics: { x: transition.graphics.x - 80, y: transition.graphics.y },
     objectId: transition.objectId,

@@ -1,7 +1,12 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { useEditorStore } from "./editor-store";
+import { useNameConflictStore } from "./name-conflict-store";
 
 function resetStore() {
+  // These tests are about paste mechanics, not the duplicate-name warning:
+  // pick names silently so a paste lands instead of waiting on a dialog.
+  // The policy itself is covered in editor-store-names.test.ts.
+  useNameConflictStore.setState({ policy: "auto", pending: null });
   useEditorStore.getState().resetNet();
 }
 

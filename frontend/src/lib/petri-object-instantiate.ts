@@ -2,7 +2,6 @@ import type {
   ObjectFrame,
   ObjectLink,
   PetriArc,
-  PetriNetData,
   PetriPlace,
   PetriTransition,
 } from "@/types/petri";
@@ -13,14 +12,6 @@ let counter = 0;
 function uid(prefix: string): string {
   counter++;
   return `${prefix}_inst_${Date.now().toString(36)}_${counter}`;
-}
-
-function nextLabel(base: string, existing: readonly { name: string }[]): string {
-  const taken = new Set(existing.map((e) => e.name));
-  if (!taken.has(base)) return base;
-  let n = 2;
-  while (taken.has(`${base}_${n}`)) n++;
-  return `${base}_${n}`;
 }
 
 export interface InstantiatedSubnet {
@@ -37,7 +28,6 @@ export function instantiateTemplate(
   template: PetriObjectTemplate,
   dropX: number,
   dropY: number,
-  existingNet: PetriNetData,
 ): InstantiatedSubnet {
   const oldToNew = new Map<string, string>();
   const templateFrames = template.objects ?? [];
@@ -63,14 +53,15 @@ export function instantiateTemplate(
   const offsetX = dropX - minX;
   const offsetY = dropY - minY;
 
-  const allPlaceNames = [...existingNet.places];
+  // Names are the template's own. Whether they may repeat names already on the
+  // canvas is decided by whoever places the result: a palette drop warns, an
+  // import keeps the file as it is (see editor-store addSubnetAsObject).
   const places: PetriPlace[] = template.places.map((p) => {
     const id = uid("p");
     oldToNew.set(p.id, id);
-    const name = nextLabel(p.name, allPlaceNames);
     const place: PetriPlace = {
       id,
-      name,
+      name: p.name,
       tokens: p.tokens,
       // Template-internal ownership survives as-is here; the frame pass
       // below re-mints frame ids and rewires this to the new one.
@@ -80,18 +71,15 @@ export function instantiateTemplate(
         y: p.graphics.y + offsetY,
       },
     };
-    allPlaceNames.push(place);
     return place;
   });
 
-  const allTransNames = [...existingNet.transitions];
   const transitions: PetriTransition[] = template.transitions.map((t) => {
     const id = uid("t");
     oldToNew.set(t.id, id);
-    const name = nextLabel(t.name, allTransNames);
     const transition: PetriTransition = {
       id,
-      name,
+      name: t.name,
       priority: t.priority,
       distribution: t.distribution,
       mean_delay: t.mean_delay,
@@ -103,7 +91,6 @@ export function instantiateTemplate(
         y: t.graphics.y + offsetY,
       },
     };
-    allTransNames.push(transition);
     return transition;
   });
 
