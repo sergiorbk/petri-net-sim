@@ -993,6 +993,7 @@ async def export_session_training_data(
             archive=decode_archive(instance.net_data["_training_archive_base64"]) if (instance.net_data or {}).get("_training_archive_base64") else None,
             contributor=contributor_profile(user),
             conversation_origin=origin, tool_origin="client-provided" if body.tool_calls else "unavailable",
+            simulate=True,
         )
     except ValueError as exc:
         raise BadRequestException("Invalid training export data") from exc

@@ -58,6 +58,10 @@ class ExportBody(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict)
     conversation: list[dict[str, Any]] | None = None
     review: dict[str, Any] | None = None
+    # A training export asks for the review flow's automatic simulation
+    # attempts. Opening a document for review does not: it only needs the
+    # snapshot, and the reviewer picks the attempts when saving.
+    include_simulation: bool = False
 
 
 async def execute(fn, *args, **kwargs):
@@ -98,6 +102,7 @@ async def export(body: ExportBody, user: User = Depends(get_current_user)):
         return build_training_bundle(body.net_data, body.title or body.net_data.get("name", "Petri network"),
                                      archive=decode_archive(body.archive_base64) if body.archive_base64 else None,
                                      context=body.context, conversation=body.conversation, review=review, contributor=profile,
+                                     simulate=body.include_simulation,
                                      conversation_origin="client-provided" if body.conversation else "unavailable")
     data, name = await execute(capture)
     return attachment(data, name, "application/zip")

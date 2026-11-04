@@ -112,3 +112,31 @@ def simulation_evidence(pnml, review):
     return {"policy": "attempt-or-reason", "source_model_sha256": digest(pnml), "skip_reason": reason,
             "automatic_runs": [] if reason else [run_evidence(pnml, h, interval) for h in horizons],
             "interactive_runs": review.get("interactive_runs", [])}
+
+
+def snapshot_simulation(pnml, observed=None):
+    """The `verification.json` simulation block of a training export.
+
+    A training ZIP is the review ZIP without the review, so its evidence comes
+    from the review flow's own runner: `simulation_evidence` with its
+    defaults, run against the exact PNML that goes into the archive (the
+    runs carry its hash). Whatever the caller already observed, such as an
+    agent's last simulation, stays and the attempts are added next to it
+    rather than replacing it.
+
+    Fits the existing `verification` schema (parameters, results,
+    provenance), so the archive format does not change.
+    """
+    evidence = simulation_evidence(pnml, {})
+    runs = evidence["automatic_runs"]
+    base = observed or {}
+    note = "automatic attempts on this exact model, run by the same runner as the review export"
+    provenance = base.get("provenance")
+    return {
+        "parameters": {**base.get("parameters", {}),
+                       "automatic_horizons": [run["horizon"] for run in runs],
+                       "sampling_interval": 1},
+        "results": {**base.get("results", {}), "automatic_runs": runs,
+                    "source_model_sha256": evidence["source_model_sha256"]},
+        "provenance": f"{provenance}; {note}" if provenance else f"application: {note}",
+    }

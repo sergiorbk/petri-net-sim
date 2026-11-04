@@ -162,3 +162,120 @@ def test_opaque_structured_access_tokens_are_redacted_but_markings_remain():
     assert b"6 tokens" in archive.read("conversation.jsonl")
     assert arguments["tokens"] == 6
     assert arguments["token"] == arguments["mcp_token"] == arguments["bearer_token"] == "[REDACTED]"
+
+
+class TestAutomaticSimulationInTrainingExport:
+    """A training ZIP is the review ZIP without the review: it carries the
+    review flow's own automatic simulation attempts, produced by the same
+    runner (`simulation_evidence`), so a reader gets evidence about the model
+    without anybody having to run an iterative review first."""
+
+    def _verification(self, data):
+        archive, manifest = unpack(data)
+        return archive, manifest, json.loads(archive.read("verification.json"))
+
+    def test_off_by_default_so_existing_exports_are_unchanged(self):
+        data, _ = build_training_bundle(model(), "Finite service")
+        _, _, verification = self._verification(data)
+        assert verification["simulation"] is None
+
+    def test_runs_the_review_defaults_against_the_exported_model(self):
+        data, _ = build_training_bundle(model(), "Finite service", simulate=True)
+        archive, manifest, verification = self._verification(data)
+
+        runs = verification["simulation"]["results"]["automatic_runs"]
+        assert [run["horizon"] for run in runs] == [100, 1000, 10000]
+        pnml_hash = hashlib.sha256(archive.read("model.pnml")).hexdigest()
+        assert {run["source_model_sha256"] for run in runs} == {pnml_hash}
+        assert all(run["trajectory"]["samples"] for run in runs)
+        assert verification["simulation"]["parameters"]["automatic_horizons"] == [100, 1000, 10000]
+        assert "review" in verification["simulation"]["provenance"]
+        assert not any(row["artifact"] == "verification.json" for row in manifest["missing_data"])
+
+    def test_the_runs_are_the_review_runners_output_not_a_second_implementation(self):
+        from src.services.training_simulation import simulation_evidence
+
+        data, _ = build_training_bundle(model(), "Finite service", simulate=True)
+        archive, _, verification = self._verification(data)
+        reference = simulation_evidence(archive.read("model.pnml"), {})["automatic_runs"]
+        exported = verification["simulation"]["results"]["automatic_runs"]
+
+        def shape(run):
+            return {key: (type(value).__name__) for key, value in run.items()}
+
+        assert [shape(r) for r in exported] == [shape(r) for r in reference]
+        assert [r["status"] for r in exported] == [r["status"] for r in reference]
+        assert [r["final_state"] for r in exported] == [r["final_state"] for r in reference]
+
+    def test_stays_an_unreviewed_export_with_no_review_record(self):
+        data, _ = build_training_bundle(model(), "Finite service", simulate=True)
+        archive, manifest, _ = self._verification(data)
+        assert manifest["status"] == "unreviewed"
+        assert not [n for n in archive.namelist() if n.startswith("history/reviews/")]
+        history = json.loads(archive.read("dataset-history.json"))
+        assert history["reviews"] == []
+
+    def test_keeps_what_the_caller_already_observed(self):
+        observed = {"parameters": {"simulation_time": 50, "time_unit": "s"},
+                    "results": {"summary": "seen by the agent"},
+                    "provenance": "application: last observed simulation result"}
+        data, _ = build_training_bundle(model(), "Finite service", simulation=observed, simulate=True)
+        _, _, verification = self._verification(data)
+        simulation = verification["simulation"]
+        assert simulation["results"]["summary"] == "seen by the agent"
+        assert simulation["parameters"]["simulation_time"] == 50
+        assert len(simulation["results"]["automatic_runs"]) == 3
+        assert simulation["provenance"].startswith("application: last observed simulation result")
+
+    def test_an_explicit_verification_in_the_context_wins_and_no_runs_are_wasted(self):
+        context = {"verification": {"status": "unknown", "checks": [], "simulation": None}}
+        data, _ = build_training_bundle(model(), "Finite service", context=context, simulate=True)
+        _, _, verification = self._verification(data)
+        assert verification["simulation"] is None
+
+    def test_an_empty_model_is_not_simulated_and_still_exports(self):
+        empty = PetriNet(name="Empty").model_dump()
+        data, _ = build_training_bundle(empty, "Empty", simulate=True)
+        _, _, verification = self._verification(data)
+        assert verification["simulation"] is None
+
+    async def test_the_web_export_runs_them_only_when_asked(self):
+        from src.api.versions.v1.routers.training import ExportBody, export
+
+        user = SimpleNamespace(id="u1", metadata_={})
+        plain = await export(ExportBody(net_data=model()), user)
+        asked = await export(ExportBody(net_data=model(), include_simulation=True), user)
+        assert json.loads(zipfile.ZipFile(io.BytesIO(plain.body)).read("verification.json"))["simulation"] is None
+        simulation = json.loads(zipfile.ZipFile(io.BytesIO(asked.body)).read("verification.json"))["simulation"]
+        assert len(simulation["results"]["automatic_runs"]) == 3
+
+    async def test_a_review_request_does_not_also_run_the_export_defaults(self):
+        """The review runs the attempts the reviewer chose, and only those."""
+        from src.api.versions.v1.routers.training import ExportBody, export
+
+        user = SimpleNamespace(id="u1", metadata_={})
+        review = {"revision_id": "current", "decision": "accepted", "comment": "ok", "findings": [],
+                  "simulation_horizons": [5], "sampling_interval": 1, "skip_simulation_reason": "", "interactive_runs": []}
+        response = await export(ExportBody(net_data=model(), review=review, include_simulation=True), user)
+        files = zipfile.ZipFile(io.BytesIO(response.body))
+        assert json.loads(files.read("verification.json"))["simulation"] is None
+
+    async def test_the_chat_download_carries_them_too(self):
+        instance = SimpleNamespace(user_id="owner", title="Finite service", net_data=model(), messages=[])
+        repo = SimpleNamespace(get_by_id=AsyncMock(return_value=instance))
+        with patch("src.api.versions.v1.routers.sessions.SessionRepository", return_value=repo):
+            response = await export_session_training_data("session", TrainingExportRequest(), SimpleNamespace(id="owner", metadata_={}), None)
+        simulation = json.loads(zipfile.ZipFile(io.BytesIO(response.body)).read("verification.json"))["simulation"]
+        assert len(simulation["results"]["automatic_runs"]) == 3
+
+    async def test_the_mcp_export_carries_them_too(self):
+        ctx = MagicMock()
+        ctx.session = object()
+        ctx.request_context.lifespan_context.session_store = SessionStore()
+        catalog = build_catalog()
+        await _build_tool_fn(catalog["create_network"])(ctx=ctx, name="Finite service")
+        await _build_tool_fn(catalog["add_place"])(ctx=ctx, name="Source", tokens=6)
+        result = json.loads(await _build_tool_fn(catalog["export_training_data"])(ctx=ctx, title="Finite service"))
+        archive, _ = unpack(base64.b64decode(result["data_base64"]))
+        simulation = json.loads(archive.read("verification.json"))["simulation"]
+        assert simulation is not None and "automatic_runs" in simulation["results"]

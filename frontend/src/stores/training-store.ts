@@ -81,6 +81,10 @@ export async function exportTrainingData(task?: string): Promise<void> {
             title: net.name,
             archive_base64: state.archive,
             context: task === undefined ? {} : { task: task || null },
+            // A training export is the review ZIP without the review, so it
+            // carries the same automatic simulation attempts. Opening a
+            // document for review (ReviewWorkspace) does not ask for them.
+            include_simulation: true,
         });
         useTrainingStore.getState().adopt(result.archive, result.info);
         saveDownload(result.blob, result.name);

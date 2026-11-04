@@ -55,7 +55,6 @@ export function ExportDialog({
     const [maxDimension, setMaxDimension] = useState(4096);
     const [transparent, setTransparent] = useState(false);
     const [parameters, setParameters] = useState(true);
-    const [overview, setOverview] = useState(true);
     const [objectIndices, setObjectIndices] = useState<number[]>([]);
     const [exporting, setExporting] = useState(false);
     const imageNet = netProp ?? useEditorStore.getState().net;
@@ -82,7 +81,9 @@ export function ExportDialog({
                     max_dimension: maxDimension,
                     transparent_background: transparent,
                     include_parameters: parameters,
-                    include_overview: overview,
+                    // The overview of the whole network is not offered as a
+                    // choice: the server includes it whenever object views are
+                    // exported, the same set the training ZIP carries.
                     ...(scope === "objects" && objectIndices.length
                         ? { object_indices: objectIndices }
                         : {}),
@@ -143,7 +144,6 @@ export function ExportDialog({
         maxDimension,
         transparent,
         parameters,
-        overview,
         objectIndices,
     ]);
 
@@ -253,16 +253,6 @@ export function ExportDialog({
                         )}
                         {scope === "objects" && (
                             <>
-                                <label className="flex gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={overview}
-                                        onChange={(e) =>
-                                            setOverview(e.target.checked)
-                                        }
-                                    />
-                                    {t("review.includeOverview")}
-                                </label>
                                 <p className="text-xs text-text-muted">
                                     {t("review.allObjectsHint")}
                                 </p>

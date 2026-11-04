@@ -737,7 +737,7 @@
     },
     "savedRuns": "Saved simulation attempts: {{count}}",
     "exportTitle": "Export training data",
-    "exportHint": "Save a portable ZIP with the complete network, nested images, geometry, context and all imported history. External conversations are only included when explicitly supplied.",
+    "exportHint": "Save a portable ZIP with the complete network, nested images, geometry, context, automatic simulation attempts and all imported history. It is the review ZIP without a review. The simulation can take a few seconds. External conversations are only included when explicitly supplied.",
     "exportFailed": "Export failed. Return to the main canvas and check the model.",
     "downloadArchive": "Download ZIP",
     "useMainCanvas": "Return to the main network canvas before exporting the complete document.",
@@ -757,8 +757,7 @@
       "selection": "Selected elements and internal arcs"
     },
     "imageFormat": "File format",
-    "includeOverview": "Include the complete overview",
-    "allObjectsHint": "Leave all unchecked to export every object. Object views download as ZIP.",
+    "allObjectsHint": "The overview of the whole network is always included. Leave all objects unchecked to export every one. Object views download as ZIP.",
     "imageScale": "Scale",
     "maxDimension": "Maximum image dimension (pixels)",
     "transparent": "Transparent background",
