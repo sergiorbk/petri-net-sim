@@ -41,6 +41,7 @@ import type {
   SimulationSnapshot,
 } from "@/types/petri";
 import {
+  settleNewObjectName,
   useEditorStore,
   type EdgeStyle,
   type EditorTool,
@@ -1607,7 +1608,6 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         },
         drop.x,
         drop.y,
-        currentNet,
       );
       useEditorStore.getState().addSubnet(subnet);
       useEditorStore.getState().setSelection([]);
@@ -2598,13 +2598,7 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
         const detail = await usePetriObjectStore.getState().getDetail(objectId);
         if (!detail) return;
         const flowPos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-        const currentNet = useEditorStore.getState().net;
-        const subnet = instantiateTemplate(
-          detail.template_data,
-          flowPos.x,
-          flowPos.y,
-          currentNet,
-        );
+        const subnet = instantiateTemplate(detail.template_data, flowPos.x, flowPos.y);
         // A Petri-object arrives already framed, so what lands on the canvas
         // matches the palette entry it came from instead of dissolving into
         // loose places and transitions.
@@ -2618,7 +2612,11 @@ function EditorCanvasInner({ className }: EditorCanvasInnerProps) {
 
   const handleCreateObject = useCallback((name: string) => {
     setCreateObjectOpen(false);
-    useEditorStore.getState().groupSelectionIntoObject(name);
+    // A name typed by hand can clash with an existing element: the policy
+    // (warn / pick another / allow) decides what the object ends up called.
+    settleNewObjectName(name, (finalName) =>
+      useEditorStore.getState().groupSelectionIntoObject(finalName),
+    );
   }, []);
 
   const handleSaveObjectToLibrary = useCallback(

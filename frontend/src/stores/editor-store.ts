@@ -33,6 +33,14 @@ import {
   type ElementGroup,
 } from "@/lib/petri-object-model";
 import { nextId, nextLabel } from "@/lib/petri-ids";
+import {
+  allNames,
+  findGroupConflicts,
+  namedElements,
+  renameConflict,
+  renameInGroup,
+} from "@/lib/petri-names";
+import { useNameConflictStore } from "@/stores/name-conflict-store";
 import { randomNetName } from "@/lib/random-net-name";
 import { eraserPick, eraserReachUnits, resolveEraserBand, type EraserHit } from "@/lib/eraser-geometry";
 
@@ -194,6 +202,14 @@ interface EditorState {
     opts?: { parentId?: string },
   ) => string;
   renameObject: (id: string, name: string) => void;
+  /**
+   * Rename a place, transition or object frame from the UI. A name another
+   * element already uses goes through the duplicate-name policy (warn, pick
+   * automatically, or allow); a free one is applied directly. Returns true
+   * when the rename was applied right away, false when it is waiting on the
+   * warning or the element does not exist.
+   */
+  renameElement: (id: string, name: string) => boolean;
   setObjectPriority: (id: string, priority: number) => void;
   setObjectTemplateId: (id: string, templateId: string | null) => void;
   resizeObject: (id: string, width: number, height: number) => void;
@@ -303,6 +319,31 @@ function pushHistory(past: PetriNetData[], net: PetriNetData): PetriNetData[] {
   const next = [...past, net];
   if (next.length > MAX_HISTORY) next.shift();
   return next;
+}
+
+/**
+ * Hand `group` to `proceed` once any names it shares with `net` are settled.
+ *
+ * Nothing is added here: a group that collides with the canvas is renamed,
+ * kept as it is, or dropped entirely, according to the saved policy or the
+ * user's answer in the warning. `proceed` runs exactly once, or never when the
+ * user cancels, and it runs later than this call when a dialog is open, so it
+ * must read the store afresh rather than close over a net captured earlier.
+ */
+function settleGroupNames<G extends ElementGroup>(
+  net: PetriNetData,
+  group: G,
+  proceed: (settled: G) => void,
+): void {
+  const conflicts = findGroupConflicts(net, group);
+  if (conflicts.length === 0) {
+    proceed(group);
+    return;
+  }
+  useNameConflictStore.getState().resolve(conflicts, allNames(net), (decision) => {
+    if (decision.kind === "cancel") return;
+    proceed(decision.kind === "keep" ? group : renameInGroup(group, decision.renames));
+  });
 }
 
 export const useEditorStore = create<EditorState>()(
@@ -455,7 +496,7 @@ export const useEditorStore = create<EditorState>()(
   },
 
   paste: () => {
-    const { clipboard, net, past } = get();
+    const { clipboard, net } = get();
     if (!clipboard) return;
     if (
       clipboard.objects.length === 0 &&
@@ -465,36 +506,41 @@ export const useEditorStore = create<EditorState>()(
       return;
     }
 
-    const copy = cloneElements(net, clipboard, { x: PASTE_OFFSET, y: PASTE_OFFSET });
+    const pasted = cloneElements(net, clipboard, { x: PASTE_OFFSET, y: PASTE_OFFSET });
 
-    // Selecting a pasted object rather than its members mirrors what the user
-    // copied, and keeps the frame as the thing they can immediately move.
-    const pastedMemberIds = new Set(
-      [...copy.places, ...copy.transitions].filter((e) => e.objectId).map((e) => e.id),
-    );
-    const newSelection: ElementRef[] = [
-      ...copy.objects.map((o): ElementRef => ({ id: o.id, kind: "object" })),
-      ...copy.places
-        .filter((p) => !pastedMemberIds.has(p.id))
-        .map((p): ElementRef => ({ id: p.id, kind: "place" })),
-      ...copy.transitions
-        .filter((t) => !pastedMemberIds.has(t.id))
-        .map((t): ElementRef => ({ id: t.id, kind: "transition" })),
-    ];
+    settleGroupNames(net, pasted, (copy) => {
+      // Read afresh: with the warning open this runs after the user answers.
+      const { net: current, past: history } = get();
 
-    set({
-      net: {
-        ...net,
-        objects: [...getObjects(net), ...copy.objects],
-        places: [...net.places, ...copy.places],
-        transitions: [...net.transitions, ...copy.transitions],
-        arcs: [...net.arcs, ...copy.arcs],
-        links: [...getLinks(net), ...copy.links],
-      },
-      past: pushHistory(past, net),
-      future: [],
-      dirty: true,
-      selection: newSelection,
+      // Selecting a pasted object rather than its members mirrors what the user
+      // copied, and keeps the frame as the thing they can immediately move.
+      const pastedMemberIds = new Set(
+        [...copy.places, ...copy.transitions].filter((e) => e.objectId).map((e) => e.id),
+      );
+      const newSelection: ElementRef[] = [
+        ...copy.objects.map((o): ElementRef => ({ id: o.id, kind: "object" })),
+        ...copy.places
+          .filter((p) => !pastedMemberIds.has(p.id))
+          .map((p): ElementRef => ({ id: p.id, kind: "place" })),
+        ...copy.transitions
+          .filter((t) => !pastedMemberIds.has(t.id))
+          .map((t): ElementRef => ({ id: t.id, kind: "transition" })),
+      ];
+
+      set({
+        net: {
+          ...current,
+          objects: [...getObjects(current), ...copy.objects],
+          places: [...current.places, ...copy.places],
+          transitions: [...current.transitions, ...copy.transitions],
+          arcs: [...current.arcs, ...copy.arcs],
+          links: [...getLinks(current), ...copy.links],
+        },
+        past: pushHistory(history, current),
+        future: [],
+        dirty: true,
+        selection: newSelection,
+      });
     });
   },
 
@@ -503,7 +549,7 @@ export const useEditorStore = create<EditorState>()(
   addPlace: (x, y, opts) => {
     const { net, past } = get();
     const id = nextId("p", net.places);
-    const name = nextLabel("Place", net.places, 1);
+    const name = nextLabel("Place", namedElements(net), 1);
     const place: PetriPlace = {
       id,
       name,
@@ -527,7 +573,7 @@ export const useEditorStore = create<EditorState>()(
   addTransition: (x, y, opts) => {
     const { net, past } = get();
     const id = nextId("t", net.transitions);
-    const name = nextLabel("T", net.transitions, 1);
+    const name = nextLabel("T", namedElements(net), 1);
     const transition: PetriTransition = {
       id,
       name,
@@ -813,7 +859,7 @@ export const useEditorStore = create<EditorState>()(
   },
 
   addSubnetAsObject: (subnet, name, opts) => {
-    const { net, past } = get();
+    const { net } = get();
     const objects = getObjects(net);
     const subnetFrames = subnet.objects ?? [];
     const subnetLinks = subnet.links ?? [];
@@ -848,7 +894,7 @@ export const useEditorStore = create<EditorState>()(
 
     const frame: ObjectFrame = {
       id,
-      name: nextLabel(name, objects),
+      name,
       priority: 0,
       graphics: frameBoundsFor(withMembers, memberIds) ?? {
         x: 0,
@@ -859,12 +905,32 @@ export const useEditorStore = create<EditorState>()(
       templateId: opts?.templateId ?? null,
     };
 
-    set({
-      net: { ...withMembers, objects: [...withMembers.objects!, frame] },
-      past: pushHistory(past, net),
-      future: [],
-      dirty: true,
-      selection: [{ id, kind: "object" }],
+    // Everything the drop brings in is checked as one batch: the wrapper, the
+    // template's own frames, its places and its transitions.
+    const dropped: ElementGroup = {
+      objects: [...nestedFrames, frame],
+      places: withMembers.places.slice(net.places.length),
+      transitions: withMembers.transitions.slice(net.transitions.length),
+      arcs: [],
+      links: subnetLinks,
+    };
+    settleGroupNames(net, dropped, (settled) => {
+      const { net: current, past } = get();
+      const settledFrames = settled.objects;
+      set({
+        net: {
+          ...current,
+          objects: [...getObjects(current), ...settledFrames],
+          places: [...current.places, ...settled.places],
+          transitions: [...current.transitions, ...settled.transitions],
+          arcs: [...current.arcs, ...subnet.arcs],
+          links: [...getLinks(current), ...subnetLinks],
+        },
+        past: pushHistory(past, current),
+        future: [],
+        dirty: true,
+        selection: [{ id, kind: "object" }],
+      });
     });
     return id;
   },
@@ -875,7 +941,7 @@ export const useEditorStore = create<EditorState>()(
     const { net, past } = get();
     const objects = getObjects(net);
     const id = nextId("o", allNodeIds(net));
-    const name = nextLabel("Object", objects, 1);
+    const name = nextLabel("Object", namedElements(net), 1);
     const frame: ObjectFrame = {
       id,
       name,
@@ -905,6 +971,34 @@ export const useEditorStore = create<EditorState>()(
       future: [],
       dirty: true,
     });
+  },
+
+  renameElement: (id, name) => {
+    const { net } = get();
+    const isPlace = net.places.some((p) => p.id === id);
+    const isTransition = net.transitions.some((t) => t.id === id);
+    const isObject = getObjects(net).some((o) => o.id === id);
+    if (!isPlace && !isTransition && !isObject) return false;
+
+    const apply = (finalName: string) => {
+      if (isPlace) get().updatePlace(id, { name: finalName });
+      else if (isTransition) get().updateTransition(id, { name: finalName });
+      else get().renameObject(id, finalName);
+    };
+
+    const clash = renameConflict(net, id, name);
+    if (!clash) {
+      apply(name);
+      return true;
+    }
+
+    let appliedNow = false;
+    useNameConflictStore.getState().resolve([clash.conflict], clash.taken, (decision) => {
+      if (decision.kind === "cancel") return;
+      appliedNow = true;
+      apply(decision.kind === "keep" ? name : (decision.renames.get(id) ?? name));
+    });
+    return appliedNow;
   },
 
   setObjectPriority: (id, priority) => {
@@ -1076,27 +1170,32 @@ export const useEditorStore = create<EditorState>()(
   },
 
   duplicateObject: (id) => {
-    const { net, past } = get();
+    const { net } = get();
     const group = objectAsGroup(net, id);
     if (!group) return null;
 
-    const copy = cloneElements(net, group, { x: PASTE_OFFSET, y: PASTE_OFFSET });
-    const newId = copy.objects[0]?.id;
+    const duplicated = cloneElements(net, group, { x: PASTE_OFFSET, y: PASTE_OFFSET });
+    const newId = duplicated.objects[0]?.id;
     if (!newId) return null;
 
-    set({
-      net: {
-        ...net,
-        objects: [...getObjects(net), ...copy.objects],
-        places: [...net.places, ...copy.places],
-        transitions: [...net.transitions, ...copy.transitions],
-        arcs: [...net.arcs, ...copy.arcs],
-        links: [...getLinks(net), ...copy.links],
-      },
-      past: pushHistory(past, net),
-      future: [],
-      dirty: true,
-      selection: [{ id: newId, kind: "object" }],
+    // The id is minted above, so it is known even when the warning is open
+    // and the copy only lands after the user answers (or never, on cancel).
+    settleGroupNames(net, duplicated, (copy) => {
+      const { net: current, past } = get();
+      set({
+        net: {
+          ...current,
+          objects: [...getObjects(current), ...copy.objects],
+          places: [...current.places, ...copy.places],
+          transitions: [...current.transitions, ...copy.transitions],
+          arcs: [...current.arcs, ...copy.arcs],
+          links: [...getLinks(current), ...copy.links],
+        },
+        past: pushHistory(past, current),
+        future: [],
+        dirty: true,
+        selection: [{ id: newId, kind: "object" }],
+      });
     });
     return newId;
   },
@@ -1185,7 +1284,7 @@ export const useEditorStore = create<EditorState>()(
 
     const frame: ObjectFrame = {
       id,
-      name: name ?? nextLabel("Object", objects, 1),
+      name: name ?? nextLabel("Object", namedElements(net), 1),
       priority: 0,
       graphics: bbox,
       ...(parentId ? { objectId: parentId } : {}),
@@ -1592,4 +1691,24 @@ export const useEditorStore = create<EditorState>()(
 
 export function selectPrimary(state: EditorState): ElementRef | null {
   return state.selection[0] ?? null;
+}
+
+/**
+ * For a name typed before the element exists (the "new object" dialog): run
+ * the duplicate-name policy on it and hand `proceed` the name to use. Never
+ * calls `proceed` when the user cancels the warning.
+ */
+export function settleNewObjectName(name: string, proceed: (finalName: string) => void): void {
+  const probe: ElementGroup = {
+    objects: [
+      { id: "\u0000new", name, priority: 0, graphics: { x: 0, y: 0, width: 0, height: 0 } },
+    ],
+    places: [],
+    transitions: [],
+    arcs: [],
+    links: [],
+  };
+  settleGroupNames(useEditorStore.getState().net, probe, (settled) =>
+    proceed(settled.objects[0].name),
+  );
 }

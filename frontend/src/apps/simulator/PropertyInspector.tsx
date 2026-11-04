@@ -633,6 +633,7 @@ function NetView({ net, readOnly }: { net: PetriNetData; readOnly: boolean }) {
 function PlaceView({ place, readOnly }: { place: PetriPlace; readOnly: boolean }) {
   const { t } = useTranslation();
   const updatePlace = useEditorStore((s) => s.updatePlace);
+  const renameElement = useEditorStore((s) => s.renameElement);
   return (
     <>
       <Section title={t("inspector.section.identification")}>
@@ -644,11 +645,19 @@ function PlaceView({ place, readOnly }: { place: PetriPlace; readOnly: boolean }
             <ReadOnlyValue value={place.name} />
           ) : (
             <CommitField
-              key={`name-${place.id}`}
+              // The name is part of the key: the field is uncontrolled, so a
+              // name that changed behind its back (an automatic `_2`) has to
+              // remount it or the box keeps showing what was typed.
+              key={`name-${place.id}-${place.name}`}
               defaultValue={place.name}
               onBlur={(e) => {
                 const next = e.target.value.trim();
-                if (next && next !== place.name) updatePlace(place.id, { name: next });
+                if (next && next !== place.name) {
+                  renameElement(place.id, next);
+                  // Show the stored name again until the rename lands, so a
+                  // cancelled warning does not leave the rejected text here.
+                  e.target.value = place.name;
+                }
               }}
             />
           )}
@@ -728,6 +737,7 @@ function TransitionView({
 }) {
   const { t } = useTranslation();
   const updateTransition = useEditorStore((s) => s.updateTransition);
+  const renameElement = useEditorStore((s) => s.renameElement);
 
   const isImmediate = transition.distribution === null;
   const distChoice: DistributionChoice = isImmediate ? "immediate" : transition.distribution!;
@@ -800,11 +810,14 @@ function TransitionView({
             <ReadOnlyValue value={transition.name} />
           ) : (
             <CommitField
-              key={`name-${transition.id}`}
+              key={`name-${transition.id}-${transition.name}`}
               defaultValue={transition.name}
               onBlur={(e) => {
                 const next = e.target.value.trim();
-                if (next && next !== transition.name) updateTransition(transition.id, { name: next });
+                if (next && next !== transition.name) {
+                  renameElement(transition.id, next);
+                  e.target.value = transition.name;
+                }
               }}
             />
           )}
@@ -1001,7 +1014,7 @@ function ArcView({ arc, net, readOnly }: { arc: PetriArc; net: PetriNetData; rea
 
 function ObjectFrameView({ frame, readOnly }: { frame: ObjectFrame; readOnly: boolean }) {
   const { t } = useTranslation();
-  const renameObject = useEditorStore((s) => s.renameObject);
+  const renameElement = useEditorStore((s) => s.renameElement);
   const setObjectPriority = useEditorStore((s) => s.setObjectPriority);
   return (
     <Section title={t("inspector.section.identification")}>
@@ -1013,11 +1026,14 @@ function ObjectFrameView({ frame, readOnly }: { frame: ObjectFrame; readOnly: bo
           <ReadOnlyValue value={frame.name} />
         ) : (
           <CommitField
-            key={`name-${frame.id}`}
+            key={`name-${frame.id}-${frame.name}`}
             defaultValue={frame.name}
             onBlur={(e) => {
               const next = e.target.value.trim();
-              if (next && next !== frame.name) renameObject(frame.id, next);
+              if (next && next !== frame.name) {
+                renameElement(frame.id, next);
+                e.target.value = frame.name;
+              }
             }}
           />
         )}

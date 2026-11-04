@@ -217,12 +217,19 @@ def render_network(net_data, *, scale=1.0, max_dimension=2048, transparent_backg
     return output.getvalue(), geometry
 
 
-def _build_snapshot(net_data, title, *, context=None, conversation=None, tool_calls=None, conversation_origin="unavailable", tool_origin="unavailable", simulation=None, contributor=None):
+def _build_snapshot(net_data, title, *, context=None, conversation=None, tool_calls=None, conversation_origin="unavailable", tool_origin="unavailable", simulation=None, contributor=None, simulate=False):
     context = sanitize(context or {})
     clean_net = sanitize(net_data)
     title = sanitize(title or "Petri session")
     task = {key: context.get(key, default) for key, default in (("task", None), ("clarifications", []), ("assumptions", []), ("acceptance", []))}
     validate(task, "task")
+    pnml = PetriNetSession.from_net_data(clean_net).export_pnml().encode("utf-8")
+    # The review flow's own runner, not a second one. Skipped for an empty
+    # model (nothing to run) and when the caller supplied a verification of
+    # its own, which wins outright: the attempts would be thrown away.
+    if simulate and "verification" not in context and (clean_net.get("places") or clean_net.get("transitions")):
+        from src.services.training_simulation import snapshot_simulation
+        simulation = snapshot_simulation(pnml, simulation)
     verification = context.get("verification", {"status": "unknown", "checks": [], "simulation": sanitize(simulation)})
     validate(verification, "verification")
     conversation = sanitize(conversation or [])
@@ -235,7 +242,7 @@ def _build_snapshot(net_data, title, *, context=None, conversation=None, tool_ca
         validate(record, "toolCallRecord")
     artifacts = {
         "task.json": (json_bytes(task), "application/json", "Task and explicit acceptance criteria"),
-        "model.pnml": (PetriNetSession.from_net_data(clean_net).export_pnml().encode("utf-8"), "application/xml", "Final model with graphics"),
+        "model.pnml": (pnml, "application/xml", "Final model with graphics"),
         "conversation.jsonl": (b"".join(json.dumps(row, ensure_ascii=False).encode("utf-8")+b"\n" for row in conversation), "application/x-ndjson", "Actual task conversation"),
         "tool-calls.jsonl": (b"".join(json.dumps(row, ensure_ascii=False).encode("utf-8")+b"\n" for row in tool_calls), "application/x-ndjson", "Observed or explicitly supplied tool calls"),
         "verification.json": (json_bytes(verification), "application/json", "Verification evidence without inferred acceptance"),
@@ -277,7 +284,15 @@ def _build_snapshot(net_data, title, *, context=None, conversation=None, tool_ca
     return output.getvalue(), filename(title, "-training.zip")
 
 
-def build_training_bundle(net_data, title, *, archive=None, review=None, contributor=None, **kwargs):
+def build_training_bundle(net_data, title, *, archive=None, review=None, contributor=None, simulate=False, **kwargs):
+    """The one builder behind every export: training ZIP, review ZIP, chat
+    download and MCP tools.
+
+    `simulate` adds the review flow's automatic simulation attempts to a
+    plain (training) export. A review ignores it: the reviewer chooses the
+    attempts, and running the defaults as well would double the wait for
+    evidence nobody asked for.
+    """
     from src.services.training_history import read_bundle, append_history, encode_bundle, revision_files, digest
     old = read_bundle(archive) if archive else None
     if old:
@@ -289,7 +304,7 @@ def build_training_bundle(net_data, title, *, archive=None, review=None, contrib
         kwargs["conversation"] = supplied if kwargs.get("conversation_origin") == "application" and supplied[:len(previous)] == previous else previous + supplied
         if previous:
             kwargs["conversation_origin"] = "client-provided"
-    data, _ = _build_snapshot(net_data, title, contributor=contributor, **kwargs)
+    data, _ = _build_snapshot(net_data, title, contributor=contributor, simulate=simulate and review is None, **kwargs)
     fresh = read_bundle(data)
     if review is not None:
         from src.services.training_simulation import simulation_evidence

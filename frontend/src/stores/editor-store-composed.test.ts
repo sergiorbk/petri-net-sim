@@ -3,8 +3,13 @@ import type { PetriNetData } from "@/types/petri";
 import { objectLevel, resolveObjectBand } from "@/lib/petri-object-model";
 import { FRAME_MIN_H, FRAME_MIN_W } from "@/lib/petri-geometry";
 import { useEditorStore } from "./editor-store";
+import { useNameConflictStore } from "./name-conflict-store";
 
 function resetStore() {
+  // Duplicate/paste mechanics are under test here, not the name warning:
+  // pick names silently so the copy lands instead of waiting on a dialog.
+  // The policy itself is covered in editor-store-names.test.ts.
+  useNameConflictStore.setState({ policy: "auto", pending: null });
   useEditorStore.getState().resetNet();
 }
 
@@ -1482,12 +1487,7 @@ describe("library round trip keeps the nested structure", () => {
 
     // Drop it onto a fresh canvas like the palette does.
     useEditorStore.getState().resetNet();
-    const subnet = instantiateTemplate(
-      { name: "Tpl", ...template },
-      500,
-      500,
-      useEditorStore.getState().net,
-    );
+    const subnet = instantiateTemplate({ name: "Tpl", ...template }, 500, 500);
     const wrapperId = useEditorStore.getState().addSubnetAsObject(subnet, "Copy");
 
     const after = useEditorStore.getState().net;

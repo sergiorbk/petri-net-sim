@@ -2691,7 +2691,7 @@ def op_export_training_data(
         tool_calls=tool_calls if tool_calls is not None else observed,
         conversation_origin=getattr(session, "_export_conversation_origin", "client-provided") if conversation else "unavailable",
         tool_origin="client-provided" if tool_calls is not None else "application",
-        simulation=simulation,
+        simulation=simulation, simulate=True,
     )
     session._training_archive = data
     return encoded_download(data, name, "application/zip")

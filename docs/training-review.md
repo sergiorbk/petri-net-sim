@@ -10,6 +10,12 @@ document. Imported profiles never replace your own contributor profile.
 1. Build or correct the model on the normal editor canvas.
 2. Use **AI > Export training data**. Add the task if available and download the
    ZIP. Return to the main canvas first when editing an object's own canvas.
+   A training ZIP is the review ZIP without a review: same builder, same images
+   and geometry, and the same automatic simulation attempts (horizons 100, 1000,
+   10000) recorded in `verification.json` under `simulation.results.automatic_runs`.
+   The chat's **Training ZIP** button and the MCP `export_training_data` tool do
+   the same. Opening a document for review does not run them; the reviewer picks
+   the attempts when saving.
 3. The reviewer opens that ZIP and chooses **Review > Review saved network**.
 4. Click an element with **Add finding**, or drag an area with **Mark an area**.
    The finding form opens immediately. **Inspect parameters** provides read-only
@@ -112,8 +118,9 @@ by a server-side archive ID. Standard account/MCP integration switches still app
 ## Standalone image export
 
 **File > Export > PNG** also offers ZIP output, complete/current canvas, object
-subtrees or selected elements with internal arcs. Choose objects, overview,
-parameter table, scale (up to 4), transparency and maximum dimension (up to 8192).
+subtrees or selected elements with internal arcs. Choose objects, parameter
+table, scale (up to 4), transparency and maximum dimension (up to 8192). Object
+views always come with the overview of the whole network, as in the training ZIP.
 Multiple views require ZIP and include `images.json` geometry. At most 24 million
 pixels are rendered per image. The renderer preserves model coordinates; it is
 a model illustration, not a browser screenshot.
