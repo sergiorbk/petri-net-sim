@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/common/Avatar";
 import { WordMark } from "@/components/common/WordMark";
 import { useAuthStore } from "@/stores/auth-store";
+import { FeedbackButton } from "./FeedbackButton";
 
 /** Settings sections that have their own icon down here, so the gear does
  *  not also light up while the reader is looking at one of them. */
@@ -60,6 +61,7 @@ export function ActivityBar() {
       />
 
       <div className="mt-auto flex flex-col items-center gap-2">
+        <FeedbackButton />
         {isAuthenticated && (
           <>
             <ActivityItem
