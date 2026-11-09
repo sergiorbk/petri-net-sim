@@ -34,6 +34,12 @@
     "settings": "Settings",
     "logout": "Log out"
   },
+  "feedback": {
+    "title": "Feedback and bug reports",
+    "bug": "Report a bug (GitHub)",
+    "feature": "Suggest an improvement (GitHub)",
+    "feedback": "Send feedback (GitHub)"
+  },
   "nameConflict": {
     "title": "Name already in use",
     "titleMany": "Names already in use",
